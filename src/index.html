@@ -27,9 +27,23 @@
       </div>
       <div class="tbc" data-tbc="goals">
         <button id="btn-add-goal" class="primary">+ Add goal</button>
+        <button class="tb-search-btn" data-search-btn title="Search goals (Ctrl+F)">
+          <svg class="search-ic" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+            <circle cx="6.7" cy="6.7" r="4.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+            <line x1="9.9" y1="9.9" x2="14" y2="14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <span>Search</span>
+        </button>
       </div>
       <div class="tbc" data-tbc="notes">
         <button id="btn-new-note" class="primary">+ Note</button>
+        <button class="tb-search-btn" data-search-btn title="Search notes (Ctrl+F)">
+          <svg class="search-ic" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+            <circle cx="6.7" cy="6.7" r="4.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+            <line x1="9.9" y1="9.9" x2="14" y2="14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <span>Search</span>
+        </button>
       </div>
     </div>
 
@@ -50,13 +64,6 @@
         <button class="side-item" data-view-area="goals">Goals</button>
         <button class="side-item" data-view-area="notes">Notes</button>
       </div>
-      <button class="side-item side-search" id="btn-search" title="Search goals & notes (Ctrl+F)">
-        <svg class="search-ic" width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
-          <circle cx="6.7" cy="6.7" r="4.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
-          <line x1="9.9" y1="9.9" x2="14" y2="14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-        </svg>
-        <span>Search</span>
-      </button>
     </nav>
 
     <!-- The single main view. Exactly one .area is visible at a time. -->
@@ -130,7 +137,7 @@
         <span class="switch"><input type="checkbox" id="lf-recurring"><span class="slider"></span></span>
       </label>
 
-      <label class="field">Estimated duration
+      <label class="field">Duration (optional)
         <input id="lf-duration" type="text" autocomplete="off" placeholder="1h30m">
       </label>
       <div id="lf-duration-hint" class="hint"></div>
@@ -138,11 +145,9 @@
       <fieldset id="lf-task-fields" class="field">
         <legend>Schedule</legend>
         <div class="row">
-          <label>Date <input id="lf-date" type="date"></label>
-          <label>Time <input id="lf-time" type="time"></label>
+          <label>Date (optional) <input id="lf-date" type="date"></label>
+          <label>Time (optional) <input id="lf-time" type="time"></label>
         </div>
-        <label class="check"><input id="lf-estimated" type="checkbox"> Estimated</label>
-        <label class="check"><input id="lf-done" type="checkbox"> Done</label>
       </fieldset>
 
       <fieldset id="lf-budget-fields" class="field">
@@ -150,12 +155,12 @@
         <div class="dow" id="lf-dow" aria-label="Days of week"></div>
         <div class="row">
           <label>Start time <input id="lf-rec-time" type="time"></label>
-          <label>From <input id="lf-rec-start" type="date"></label>
-          <label>Until <input id="lf-rec-end" type="date"></label>
+          <label>From (optional) <input id="lf-rec-start" type="date"></label>
+          <label>Until (optional) <input id="lf-rec-end" type="date"></label>
         </div>
       </fieldset>
 
-      <label class="field">Notes
+      <label class="field">Notes (optional)
         <textarea id="lf-notes" rows="2"></textarea>
       </label>
 
@@ -166,7 +171,7 @@
     </form>
   </dialog>
 
-  <!-- Global search palette (Ctrl+F / sidebar) -->
+  <!-- Page-scoped search palette (top-bar Search button / Ctrl+F). Opened non-modally. -->
   <dialog id="search-dialog" class="search-dialog">
     <div class="search-box">
       <input id="search-input" type="text" placeholder="Search goals and notes…" autocomplete="off" spellcheck="false">

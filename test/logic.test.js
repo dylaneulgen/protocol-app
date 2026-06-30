@@ -34,20 +34,19 @@ test('date helpers work in local time', () => {
   assert.strictEqual(util.ymd(util.startOfMonth(d)), '2026-06-01');
 });
 
-test('rollup aggregates finite, estimated, done, and recurring totals', () => {
+test('rollup aggregates finite, done, and recurring totals', () => {
   const goal = model.makeNode('Get fit', null);
   goal.children = [
-    model.makeNode('Run 5k', { kind: 'task', durationMin: 30, estimated: false, scheduledStart: null, done: true, completedAt: null }),
-    model.makeNode('Meal prep', { kind: 'task', durationMin: 60, estimated: true, scheduledStart: null, done: false, completedAt: null }),
+    model.makeNode('Run 5k', { kind: 'task', durationMin: 30, scheduledStart: null, done: true, completedAt: null }),
+    model.makeNode('Meal prep', { kind: 'task', durationMin: 60, scheduledStart: null, done: false, completedAt: null }),
     model.makeNode('Gym', {
-      kind: 'budget', durationMin: 60, estimated: true,
+      kind: 'budget', durationMin: 60,
       recurrence: { daysOfWeek: [1, 3, 5], startTime: '07:00', startDate: null, endDate: null },
       completedOccurrences: []
     })
   ];
   const r = model.rollup(goal);
   assert.strictEqual(r.finiteMin, 90);        // 30 + 60 one-off tasks
-  assert.strictEqual(r.estimatedMin, 60);     // meal prep
   assert.strictEqual(r.doneMin, 30);          // run done
   assert.strictEqual(r.taskCount, 2);
   assert.strictEqual(r.doneCount, 1);
@@ -155,7 +154,7 @@ test('instantiateTemplate resets volatile per-instance state', () => {
     id: 'x', name: 'Dirty', builtin: false,
     root: {
       title: 'Root', notes: '', children: [], leaf: {
-        kind: 'task', durationMin: 45, estimated: true,
+        kind: 'task', durationMin: 45,
         scheduledStart: '2026-06-30T10:00:00.000Z', done: true,
         completedAt: '2026-06-30T11:00:00.000Z', actualMin: 99,
         timerStart: '2026-06-30T10:00:00.000Z'
@@ -165,7 +164,6 @@ test('instantiateTemplate resets volatile per-instance state', () => {
   const g = model.instantiateTemplate(dirty, 'Use it');
   assert.strictEqual(g.leaf.kind, 'task');
   assert.strictEqual(g.leaf.durationMin, 45);   // structure preserved
-  assert.strictEqual(g.leaf.estimated, true);
   assert.strictEqual(g.leaf.scheduledStart, null); // but schedule/progress wiped
   assert.strictEqual(g.leaf.done, false);
   assert.strictEqual(g.leaf.completedAt, null);

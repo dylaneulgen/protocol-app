@@ -64,15 +64,14 @@
     items.forEach(function (n) {
       var lf = n.leaf;
       var card = document.createElement('div');
-      card.className = 'backlog-card' + (lf.estimated ? ' estimated' : '');
+      card.className = 'backlog-card';
       card.draggable = true;
       card.dataset.id = n.id;
       card.title = 'Drag onto a day to schedule · click to edit';
 
       card.innerHTML =
         (crumbs(n) ? '<div class="crumbs">' + esc(crumbs(n)) + '</div>' : '') +
-        '<div class="bl-title">' + esc(n.title) +
-          (lf.estimated ? ' <span class="badge" title="Estimated">~</span>' : '') + '</div>' +
+        '<div class="bl-title">' + esc(n.title) + '</div>' +
         '<div class="bl-dur">' +
           (lf.durationMin > 0 ? esc(P.util.formatDuration(lf.durationMin)) : 'No duration set') +
         '</div>';

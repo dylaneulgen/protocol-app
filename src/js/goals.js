@@ -11,8 +11,15 @@
   var editingId = null;
   var creatingNew = false;   // editor opened for a freshly click-created task
   var savedThisOpen = false; // did the user actually save this editor session
-  var selectedId = null;     // which node is selected (reveals its details/actions)
+  // Selection is a list (in click order); the LAST id is the "primary" — the one
+  // whose details/actions show and the target for paste. Plain click = single
+  // select; Shift+click toggles a node in/out of the set (multi-select).
+  var selectedIds = [];
+  var clipboard = [];        // copied goal subtrees (deep clones), pasted with fresh ids
   var selectedTemplateId = null; // template chosen in the New-goal dialog (null = Blank)
+
+  function primaryId() { return selectedIds.length ? selectedIds[selectedIds.length - 1] : null; }
+  function isSelected(id) { return selectedIds.indexOf(id) !== -1; }
 
   // ---- Mount ----------------------------------------------------------------
   function mount() {
@@ -46,9 +53,11 @@
 
   function nodeHtml(n, depth) {
     var leaf = P.model.isLeaf(n);
+    var selCls = isSelected(n.id) ? ' selected' : '';
+    if (n.id === primaryId()) selCls += ' primary-sel';
     var html = '<div class="node" data-id="' + n.id + '">';
     html += '<div class="node-row ' + (leaf ? 'is-leaf' : 'is-parent') +
-      (depth === 0 ? ' goal-header' : '') + (n.id === selectedId ? ' selected' : '') +
+      (depth === 0 ? ' goal-header' : '') + selCls +
       rowMods(n) + '"' +
       (leaf && n.leaf.kind === 'task' ? ' draggable="true"' : '') + '>';
 
@@ -66,10 +75,12 @@
     // title
     html += '<span class="title">' + esc(n.title) + '</span>';
 
-    // live timer — visible whenever a task's timer is running (any selection state)
+    // live timer — visible whenever a task's timer is running (any selection state).
+    // Green while the time spent is under the duration estimate, red once over it.
     if (leaf && n.leaf.kind === 'task' && n.leaf.timerStart) {
-      html += '<span class="timer-live" data-id="' + n.id + '">' +
-        P.util.fmtElapsed(Date.now() - new Date(n.leaf.timerStart).getTime()) + '</span>';
+      var elapsedMs = Date.now() - new Date(n.leaf.timerStart).getTime();
+      html += '<span class="timer-live' + timerPace(n.leaf, elapsedMs) + '" data-id="' + n.id + '">' +
+        P.util.fmtElapsed(elapsedMs) + '</span>';
     }
 
     // meta + actions — hidden until the row is selected (see CSS)
@@ -101,13 +112,23 @@
       var m = '';
       if (lf.kind === 'budget') m += ' kind-budget';
       else {
-        if (lf.estimated) m += ' estimated';
         if (lf.done) m += ' done';
         if (lf.scheduledStart) m += ' scheduled';
       }
       return m;
     }
     return '';
+  }
+
+  // Pace class for a running timer: ' under' (green) while total time spent is
+  // within the duration estimate, ' over' (red) once it exceeds it, '' if there's
+  // no estimate to compare against. Counts previously logged time, not just the
+  // current run, so a resumed task that's already over reads red immediately.
+  function timerPace(lf, runningMs) {
+    var estMs = (lf.durationMin || 0) * 60000;
+    if (estMs <= 0) return '';
+    var spentMs = (lf.actualMin || 0) * 60000 + (runningMs || 0);
+    return spentMs > estMs ? ' over' : ' under';
   }
 
   function metaHtml(n, leaf) {
@@ -133,7 +154,6 @@
     var out = [];
     if (lf.durationMin > 0) out.push('<span class="chip dur">' + P.util.formatDuration(lf.durationMin) + '</span>');
     if (lf.actualMin >= 1) out.push('<span class="chip actual">logged ' + P.util.formatDuration(Math.round(lf.actualMin)) + '</span>');
-    if (lf.estimated) out.push('<span class="chip est">est</span>');
     if (lf.scheduledStart) {
       var d = new Date(lf.scheduledStart);
       out.push('<span class="chip when">' + P.util.fmtDateShort(d) + ' ' + P.util.fmtTimeShort(d) + '</span>');
@@ -196,7 +216,7 @@
         var child = P.model.makeNode('New task', carry || P.model.defaultTaskLeaf());
         if (parent) parent.collapsed = false;
         P.model.addChild(st.goals, id, child); // clears parent.leaf
-        selectedId = child.id;
+        selectedIds = [child.id];
         P.store.commit();
         startRename(child.id); // immediately let the user name it
       } else if (action === 'delete') {
@@ -214,22 +234,44 @@
     var row = e.target.closest('.node-row');
     if (row) {
       var rid = nodeIdOf(row);
-      if (rid) selectNode(rid);
+      if (rid) selectNode(rid, e.shiftKey);
     }
   }
 
-  // Toggle selection: clicking the selected row again deselects it (hides details).
-  function selectNode(id) {
-    Array.prototype.forEach.call(treeEl.querySelectorAll('.node-row.selected'), function (r) {
-      r.classList.remove('selected');
-    });
-    if (id === selectedId) { selectedId = null; return; }
-    selectedId = id;
-    var node = treeEl.querySelector('.node[data-id="' + id + '"]');
-    if (node) {
-      var row = node.querySelector('.node-row');
-      if (row) row.classList.add('selected');
+  // Update selection. Plain click selects just this row (clicking the only
+  // selected row again clears it). Shift+click toggles this row in/out of the
+  // selection so several goals can be picked at once (for copy/paste).
+  function selectNode(id, additive) {
+    if (additive) {
+      var i = selectedIds.indexOf(id);
+      if (i === -1) selectedIds.push(id); else selectedIds.splice(i, 1);
+    } else if (selectedIds.length === 1 && selectedIds[0] === id) {
+      selectedIds = [];
+    } else {
+      selectedIds = [id];
     }
+    applySelectionClasses();
+  }
+
+  // Reflect selectedIds onto the DOM without a full re-render: every selected row
+  // gets `.selected`; the primary (last-clicked) also gets `.primary-sel`, which
+  // is what reveals its details/actions row.
+  function applySelectionClasses() {
+    if (!treeEl) return;
+    Array.prototype.forEach.call(treeEl.querySelectorAll('.node-row.selected, .node-row.primary-sel'), function (r) {
+      r.classList.remove('selected', 'primary-sel');
+    });
+    selectedIds.forEach(function (id) {
+      var row = rowOf(id);
+      if (row) row.classList.add('selected');
+    });
+    var pid = primaryId();
+    if (pid) { var pr = rowOf(pid); if (pr) pr.classList.add('primary-sel'); }
+  }
+
+  function rowOf(id) {
+    var node = treeEl.querySelector('.node[data-id="' + id + '"]');
+    return node ? node.querySelector('.node-row') : null;
   }
 
   function onChange(e) {
@@ -285,7 +327,7 @@
     var tpl = selectedTemplateId ? findTemplate(selectedTemplateId) : null;
     var g = tpl ? P.model.instantiateTemplate(tpl, name) : P.model.makeGoal(name || 'Untitled');
     st.goals.push(g);
-    selectedId = g.id;
+    selectedIds = [g.id];
     goalDlg.close();
     P.store.commit();
   }
@@ -469,22 +511,24 @@
     document.getElementById('lf-title').value = n.title;
     document.getElementById('lf-notes').value = n.notes || '';
     document.getElementById('lf-duration').value = lf.durationMin > 0 ? P.util.formatDuration(lf.durationMin) : '';
-    document.getElementById('lf-duration-hint').textContent = '';
+    var durHint = document.getElementById('lf-duration-hint');
+    durHint.textContent = '';
+    durHint.classList.remove('bad');
 
     var kind = lf.kind === 'budget' ? 'budget' : 'task';
     document.getElementById('lf-recurring').checked = (kind === 'budget');
 
-    // Task fields
+    // Task fields. A scheduledStart at exactly midnight means "no time of day"
+    // (start of the day) — show a blank Time field so the round-trip stays clean.
     if (kind === 'task' && lf.scheduledStart) {
       var d = new Date(lf.scheduledStart);
       document.getElementById('lf-date').value = P.util.ymd(d);
-      document.getElementById('lf-time').value = P.util.pad(d.getHours()) + ':' + P.util.pad(d.getMinutes());
+      var hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
+      document.getElementById('lf-time').value = hasTime ? P.util.pad(d.getHours()) + ':' + P.util.pad(d.getMinutes()) : '';
     } else {
       document.getElementById('lf-date').value = '';
       document.getElementById('lf-time').value = '';
     }
-    document.getElementById('lf-done').checked = kind === 'task' ? !!lf.done : false;
-    document.getElementById('lf-estimated').checked = kind === 'task' ? !!lf.estimated : false;
 
     // Budget fields
     var rec = (kind === 'budget' ? lf.recurrence : null) || P.model.defaultBudgetLeaf().recurrence;
@@ -508,13 +552,20 @@
     if (!f) { dlg.close(); return; }
     var n = f.node;
 
-    var durMin = P.util.parseDuration(document.getElementById('lf-duration').value);
-    if (durMin == null || durMin <= 0) {
-      var hint = document.getElementById('lf-duration-hint');
-      hint.textContent = 'Required';
-      hint.classList.add('bad');
-      document.getElementById('lf-duration').focus();
-      return;
+    // Duration is optional. Empty = no duration (0). If something IS typed, it
+    // still has to be a duration we understand, so a typo doesn't save as 0.
+    var durRaw = document.getElementById('lf-duration').value.trim();
+    var durMin = 0;
+    if (durRaw !== '') {
+      var parsed = P.util.parseDuration(durRaw);
+      if (parsed == null || parsed < 0) {
+        var hint = document.getElementById('lf-duration-hint');
+        hint.textContent = 'Not a valid duration';
+        hint.classList.add('bad');
+        document.getElementById('lf-duration').focus();
+        return;
+      }
+      durMin = parsed;
     }
 
     // Warn before a destructive task→budget conversion: a recurring budget has no
@@ -534,7 +585,6 @@
     n.notes = document.getElementById('lf-notes').value;
 
     var kind = document.getElementById('lf-recurring').checked ? 'budget' : 'task';
-    var estimated = document.getElementById('lf-estimated').checked;
 
     if (kind === 'budget') {
       var days = [];
@@ -546,7 +596,6 @@
       n.leaf = {
         kind: 'budget',
         durationMin: durMin,
-        estimated: true,
         recurrence: {
           daysOfWeek: days.length ? days : [1, 2, 3, 4, 5],
           startTime: document.getElementById('lf-rec-time').value || '18:00',
@@ -560,28 +609,26 @@
       var timeStr = document.getElementById('lf-time').value;
       var scheduledStart = null;
       if (dateStr) {
-        var dd = P.util.parseYmd(dateStr);
-        var tp = (timeStr || '09:00').split(':');
-        dd.setHours(parseInt(tp[0], 10) || 0, parseInt(tp[1], 10) || 0, 0, 0);
+        var dd = P.util.parseYmd(dateStr); // midnight (start of the chosen day)
+        // No time entered → leave it at the start of that day rather than
+        // inventing a default time-of-day.
+        if (timeStr) {
+          var tp = timeStr.split(':');
+          dd.setHours(parseInt(tp[0], 10) || 0, parseInt(tp[1], 10) || 0, 0, 0);
+        }
         scheduledStart = dd.toISOString();
       }
-      var done = document.getElementById('lf-done').checked;
-      // Preserve tracked time and any running timer. Rebuilding the leaf from the
-      // form must NOT silently discard work the user has logged — editing details
-      // is a routine action, and losing logged minutes / a live timer is data loss.
+      // Preserve tracked time, any running timer, and the done state. Done is no
+      // longer edited from this dialog (its checkbox lives on the row), so carry
+      // the existing value through instead of silently clearing it. Rebuilding the
+      // leaf must NOT discard work the user has logged.
       var prev = (n.leaf && n.leaf.kind === 'task') ? n.leaf : null;
+      var done = prev ? !!prev.done : false;
       var actualMin = prev ? (prev.actualMin || 0) : 0;
       var timerStart = prev ? (prev.timerStart || null) : null;
-      // Ticking "Done" here while a timer runs banks the elapsed time and stops
-      // the timer, mirroring actions.toggleDone.
-      if (done && timerStart) {
-        actualMin += (Date.now() - new Date(timerStart).getTime()) / 60000;
-        timerStart = null;
-      }
       n.leaf = {
         kind: 'task',
         durationMin: durMin,
-        estimated: estimated,
         scheduledStart: scheduledStart,
         done: done,
         completedAt: done ? ((prev && prev.completedAt) || new Date().toISOString()) : null,
@@ -605,7 +652,7 @@
     P.model.path(st.goals, id).forEach(function (n) {
       if (n.children && n.children.length) n.collapsed = false;
     });
-    selectedId = id;
+    selectedIds = [id];
     P.store.commit({ noHistory: true }); // re-renders the (now expanded) tree
     var node = treeEl && treeEl.querySelector('.node[data-id="' + id + '"]');
     if (node) {
@@ -618,6 +665,80 @@
     }
   }
 
+  // ---- Copy / paste (Ctrl+C / Ctrl+V) ---------------------------------------
+  // Copy the current selection (one or more goals/subtrees) onto an internal
+  // clipboard. If both an ancestor and one of its descendants are selected, the
+  // descendant is dropped — it's already included inside the ancestor's copy, so
+  // keeping it would paste a duplicate. Returns true if anything was copied.
+  function copySelection() {
+    var st = P.store.getState();
+    var ids = selectedIds.filter(function (id) { return !!P.model.find(st.goals, id); });
+    var roots = ids.filter(function (id) {
+      return !ids.some(function (other) { return other !== id && isAncestorOf(st.goals, other, id); });
+    });
+    if (!roots.length) return false;
+    clipboard = roots.map(function (id) {
+      return JSON.parse(JSON.stringify(P.model.find(st.goals, id).node));
+    });
+    if (P.app && P.app.toast) P.app.toast('Copied ' + clipboard.length + ' goal' + (clipboard.length === 1 ? '' : 's'));
+    return true;
+  }
+
+  // Paste the clipboard under the primary (last-selected) node: as children when
+  // it's a parent goal, or as siblings right after it when it's a leaf task (so a
+  // leaf's own task data is never clobbered). With nothing selected, paste as new
+  // top-level goals. Every pasted node gets brand-new ids. Returns true on paste.
+  function pasteClipboard() {
+    if (!clipboard.length) return false;
+    var st = P.store.getState();
+    var fresh = clipboard.map(function (orig) { return freshIds(JSON.parse(JSON.stringify(orig))); });
+    var pid = primaryId();
+    var target = pid ? P.model.find(st.goals, pid) : null;
+
+    if (target && !P.model.isLeaf(target.node)) {
+      target.node.collapsed = false;
+      fresh.forEach(function (nn) { P.model.addChild(st.goals, pid, nn); });
+    } else if (target) {
+      Array.prototype.splice.apply(target.list, [target.index + 1, 0].concat(fresh));
+    } else {
+      fresh.forEach(function (nn) { st.goals.push(nn); });
+    }
+
+    selectedIds = fresh.map(function (nn) { return nn.id; });
+    P.store.commit();
+    if (P.app && P.app.toast) P.app.toast('Pasted ' + fresh.length + ' goal' + (fresh.length === 1 ? '' : 's'));
+    return true;
+  }
+
+  // Is `ancestorId` a strict ancestor of `id`? (Both ids exist in the forest.)
+  function isAncestorOf(forest, ancestorId, id) {
+    if (ancestorId === id) return false;
+    return P.model.path(forest, id).some(function (n) { return n.id === ancestorId; });
+  }
+
+  // Recursively stamp a cloned subtree with new ids so a paste never collides with
+  // the originals (or with an earlier paste of the same clipboard). A paste is a
+  // FRESH instance: it keeps the plan (titles, durations, schedule, recurrence) but
+  // clears per-run progress, so a copy never inherits the original's logged time,
+  // done state, or — worst — a live stopwatch (which would otherwise render a
+  // phantom second running timer counting from the same moment).
+  function freshIds(node) {
+    node.id = P.util.uid('n');
+    var lf = node.leaf;
+    if (lf) {
+      if (lf.kind === 'budget') {
+        lf.completedOccurrences = [];
+      } else {
+        lf.timerStart = null;
+        lf.actualMin = 0;
+        lf.done = false;
+        lf.completedAt = null;
+      }
+    }
+    if (node.children && node.children.length) node.children.forEach(freshIds);
+    return node;
+  }
+
   // ---- util -----------------------------------------------------------------
   function esc(s) {
     return String(s).replace(/[&<>"]/g, function (c) {
@@ -625,5 +746,8 @@
     });
   }
 
-  P.goals = { mount: mount, render: render, openLeaf: openLeafEditor, reveal: reveal };
+  P.goals = {
+    mount: mount, render: render, openLeaf: openLeafEditor, reveal: reveal,
+    copySelection: copySelection, pasteClipboard: pasteClipboard
+  };
 })();

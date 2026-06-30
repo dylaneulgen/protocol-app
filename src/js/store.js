@@ -161,7 +161,6 @@
     if (lf.kind === 'budget') {
       var base = P.model.defaultBudgetLeaf();
       base.durationMin = num(lf.durationMin, base.durationMin);
-      base.estimated = lf.estimated !== false;
       var r = lf.recurrence || {};
       base.recurrence.daysOfWeek = Array.isArray(r.daysOfWeek) ? r.daysOfWeek.slice() : base.recurrence.daysOfWeek;
       base.recurrence.startTime = r.startTime || base.recurrence.startTime;
@@ -172,7 +171,6 @@
     }
     var t = P.model.defaultTaskLeaf();
     t.durationMin = num(lf.durationMin, t.durationMin);
-    t.estimated = !!lf.estimated;
     t.scheduledStart = typeof lf.scheduledStart === 'string' ? lf.scheduledStart : null;
     t.done = !!lf.done;
     t.completedAt = lf.completedAt || null;

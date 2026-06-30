@@ -65,7 +65,14 @@
     Array.prototype.forEach.call(live, function (el) {
       var f = P.model.find(goals, el.dataset.id);
       if (f && f.node.leaf && f.node.leaf.timerStart) {
-        el.textContent = P.util.fmtElapsed(Date.now() - new Date(f.node.leaf.timerStart).getTime());
+        var lf = f.node.leaf;
+        var elapsedMs = Date.now() - new Date(lf.timerStart).getTime();
+        el.textContent = P.util.fmtElapsed(elapsedMs);
+        // Recolour as the run crosses the duration estimate (green → red).
+        var estMs = (lf.durationMin || 0) * 60000;
+        var over = estMs > 0 && ((lf.actualMin || 0) * 60000 + elapsedMs) > estMs;
+        el.classList.toggle('over', estMs > 0 && over);
+        el.classList.toggle('under', estMs > 0 && !over);
       }
     });
   }
@@ -83,13 +90,25 @@
     if (!mod) return;
     var key = (e.key || '').toLowerCase();
 
-    // Ctrl+F / Ctrl+K — open global search. Bail if any dialog is already open
-    // (don't stack over the leaf/goal editor, and don't wipe an in-progress query
-    // when the search palette itself is the open dialog).
+    // Ctrl+F / Ctrl+K — open the page search (no-op on Calendar; see search.js).
+    // Bail if any dialog is already open (don't stack over the leaf/goal editor,
+    // and don't wipe an in-progress query when search itself is the open dialog).
     if (key === 'f' || key === 'k') {
       if (document.querySelector('dialog[open]')) return;
       e.preventDefault();
       if (P.search) P.search.open();
+      return;
+    }
+
+    // Copy / paste selected goals — goal tree only. Leave the native clipboard
+    // alone while editing text or with a dialog open, and only swallow the
+    // shortcut when we actually have something to copy/paste.
+    if (key === 'c' || key === 'v') {
+      if (P.store.getState().ui.area !== 'goals') return;
+      if (isTextTarget(e.target) || document.querySelector('dialog[open]')) return;
+      if (!P.goals) return;
+      if (key === 'c') { if (P.goals.copySelection && P.goals.copySelection()) e.preventDefault(); }
+      else { if (P.goals.pasteClipboard && P.goals.pasteClipboard()) e.preventDefault(); }
       return;
     }
 

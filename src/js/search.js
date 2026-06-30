@@ -1,7 +1,8 @@
-// Global search across goals (title + notes) and notes (title + body). Opens as
-// a modal palette via the sidebar "Search" button or Ctrl+F / Ctrl+K. Selecting a
-// result navigates to it: goals expand + scroll into view, notes open in the
-// Notes editor. Read-only — it never mutates data.
+// Search the page you're on — goals (title + notes) on the Goals page, notes
+// (title + body) on the Notes page. Opened from the "Search" button in the top
+// bar (Goals/Notes only) or Ctrl+F / Ctrl+K. It opens NON-modally, so the page
+// stays put behind it; picking a result reveals it in place on the same page.
+// Read-only — it never mutates data.
 (function () {
   'use strict';
   var P = (window.Planner = window.Planner || {});
@@ -9,28 +10,40 @@
   var results = [];
   var active = 0;
 
+  // Which page the search currently operates over ('goals' | 'notes').
+  function area() { return P.store.getState().ui.area; }
+
   function mount() {
     dlg = document.getElementById('search-dialog');
     input = document.getElementById('search-input');
     resultsEl = document.getElementById('search-results');
     if (!dlg || !input || !resultsEl) return;
 
-    var btn = document.getElementById('btn-search');
-    if (btn) btn.addEventListener('click', open);
+    Array.prototype.forEach.call(document.querySelectorAll('[data-search-btn]'), function (b) {
+      b.addEventListener('click', open);
+    });
     var closeBtn = document.getElementById('search-close');
     if (closeBtn) closeBtn.addEventListener('click', close);
 
     input.addEventListener('input', refresh);
     input.addEventListener('keydown', onKey);
     resultsEl.addEventListener('click', onResultClick);
-    // Click on the backdrop (outside the dialog content) closes it.
-    dlg.addEventListener('click', function (e) { if (e.target === dlg) close(); });
+
+    // Non-modal has no backdrop, so close on a click anywhere outside the panel
+    // (but not on a search button — clicking it while open just refocuses the input).
+    document.addEventListener('mousedown', function (e) {
+      if (!dlg.open) return;
+      if (dlg.contains(e.target) || e.target.closest('[data-search-btn]')) return;
+      close();
+    });
   }
 
   function open() {
     if (!dlg) return;
-    if (dlg.open) { input.focus(); input.select(); return; } // already open — don't wipe the query
-    dlg.showModal();
+    if (area() !== 'goals' && area() !== 'notes') return; // nothing to search here
+    if (dlg.open) { input.focus(); input.select(); return; } // already open — keep the query
+    input.placeholder = area() === 'notes' ? 'Search notes…' : 'Search goals…';
+    dlg.show(); // non-modal: the current page stays visible/interactive behind it
     input.value = '';
     results = []; active = 0;
     render();
@@ -60,32 +73,37 @@
     render();
   }
 
+  // Only search the content of the page you're on — goals OR notes, never both —
+  // so a result always reveals in place without switching pages.
   function compute(q) {
     var st = P.store.getState();
     var out = [];
-    P.model.walk(st.goals, function (n) {
-      var inTitle = n.title && n.title.toLowerCase().indexOf(q) !== -1;
-      var inNotes = n.notes && n.notes.toLowerCase().indexOf(q) !== -1;
-      if (inTitle || inNotes) {
-        var trail = P.model.path(st.goals, n.id);
-        var crumb = trail.slice(0, -1).map(function (x) { return x.title; }).join(' › ');
-        out.push({
-          type: 'goal', id: n.id, title: n.title || 'Untitled',
-          sub: crumb || 'Goal',
-          snippet: (inNotes && !inTitle) ? snipHtml(n.notes, q) : ''
-        });
-      }
-    });
-    st.notesItems.forEach(function (note) {
-      var inTitle = note.title && note.title.toLowerCase().indexOf(q) !== -1;
-      var inBody = note.body && note.body.toLowerCase().indexOf(q) !== -1;
-      if (inTitle || inBody) {
-        out.push({
-          type: 'note', id: note.id, title: note.title || 'Untitled',
-          sub: 'Note', snippet: inBody ? snipHtml(note.body, q) : ''
-        });
-      }
-    });
+    if (area() === 'goals') {
+      P.model.walk(st.goals, function (n) {
+        var inTitle = n.title && n.title.toLowerCase().indexOf(q) !== -1;
+        var inNotes = n.notes && n.notes.toLowerCase().indexOf(q) !== -1;
+        if (inTitle || inNotes) {
+          var trail = P.model.path(st.goals, n.id);
+          var crumb = trail.slice(0, -1).map(function (x) { return x.title; }).join(' › ');
+          out.push({
+            type: 'goal', id: n.id, title: n.title || 'Untitled',
+            sub: crumb || 'Goal',
+            snippet: (inNotes && !inTitle) ? snipHtml(n.notes, q) : ''
+          });
+        }
+      });
+    } else if (area() === 'notes') {
+      st.notesItems.forEach(function (note) {
+        var inTitle = note.title && note.title.toLowerCase().indexOf(q) !== -1;
+        var inBody = note.body && note.body.toLowerCase().indexOf(q) !== -1;
+        if (inTitle || inBody) {
+          out.push({
+            type: 'note', id: note.id, title: note.title || 'Untitled',
+            sub: 'Note', snippet: inBody ? snipHtml(note.body, q) : ''
+          });
+        }
+      });
+    }
     return out.slice(0, 50);
   }
 
@@ -110,7 +128,8 @@
     if (!resultsEl) return;
     var q = input.value.trim();
     if (!q) {
-      resultsEl.innerHTML = '<div class="sr-empty">Type to search across your goals and notes.</div>';
+      resultsEl.innerHTML = '<div class="sr-empty">Type to search your ' +
+        (area() === 'notes' ? 'notes' : 'goals') + '.</div>';
       return;
     }
     if (!results.length) {
@@ -138,11 +157,10 @@
     var r = results[i];
     if (!r) return;
     close();
+    // Results are scoped to the current page, so reveal in place — no page switch.
     if (r.type === 'goal') {
-      if (P.app && P.app.setArea) P.app.setArea('goals');
       if (P.goals && P.goals.reveal) P.goals.reveal(r.id);
     } else {
-      if (P.app && P.app.setArea) P.app.setArea('notes');
       if (P.notes && P.notes.open) P.notes.open(r.id);
     }
   }

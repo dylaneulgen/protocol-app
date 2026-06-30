@@ -21,7 +21,6 @@
     return {
       kind: 'task',
       durationMin: 0, // no default time — the user sets it
-      estimated: false,
       scheduledStart: null, // ISO string, or null = backlog
       done: false,
       completedAt: null,
@@ -34,7 +33,6 @@
     return {
       kind: 'budget',
       durationMin: 0, // no default time — the user sets it
-      estimated: true, // budgets are reserved capacity, not confirmed work
       recurrence: {
         daysOfWeek: [1, 2, 3, 4, 5], // 0=Sun .. 6=Sat
         startTime: '18:00',
@@ -147,7 +145,6 @@
   function rollup(node) {
     var acc = {
       finiteMin: 0,        // total of one-off task durations
-      estimatedMin: 0,     // portion of finiteMin flagged as estimated
       doneMin: 0,          // portion of finiteMin completed
       taskCount: 0,
       doneCount: 0,
@@ -164,7 +161,6 @@
         } else {
           var d = lf.durationMin || 0;
           acc.finiteMin += d;
-          if (lf.estimated) acc.estimatedMin += d;
           acc.taskCount += 1;
           if (lf.done) { acc.doneMin += d; acc.doneCount += 1; }
         }
@@ -237,7 +233,6 @@
     if (leaf.kind === 'budget') {
       var b = defaultBudgetLeaf();
       b.durationMin = isFiniteNum(leaf.durationMin) ? leaf.durationMin : 0;
-      b.estimated = true;
       var r = leaf.recurrence || {};
       b.recurrence.daysOfWeek = Array.isArray(r.daysOfWeek) ? r.daysOfWeek.slice() : b.recurrence.daysOfWeek;
       b.recurrence.startTime = r.startTime || b.recurrence.startTime;
@@ -248,7 +243,6 @@
     }
     var t = defaultTaskLeaf();
     t.durationMin = isFiniteNum(leaf.durationMin) ? leaf.durationMin : 0;
-    t.estimated = !!leaf.estimated;
     return t; // scheduledStart/done/completedAt/actualMin/timerStart stay at defaults
   }
 

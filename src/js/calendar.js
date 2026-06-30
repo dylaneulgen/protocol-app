@@ -1,8 +1,8 @@
 // The calendar. Day & Week are time-grids you drag tasks onto; Month is an
-// overview grid. Scheduled one-off tasks render as solid blocks (dashed/amber if
-// estimated); recurring time budgets render as striped "reserved" blocks the
-// budget generates automatically. Dragging a block reschedules it; dragging it
-// to the backlog unschedules it.
+// overview grid. Scheduled one-off tasks render as solid blocks; recurring time
+// budgets render as striped "reserved" blocks the budget generates
+// automatically. Dragging a block reschedules it; dragging it to the backlog
+// unschedules it.
 (function () {
   'use strict';
   var P = (window.Planner = window.Planner || {});
@@ -190,7 +190,7 @@
       });
     } else {
       var lf = it.node.leaf;
-      b.className += ' task' + (lf.estimated ? ' estimated' : '') + (lf.done ? ' done' : '');
+      b.className += ' task' + (lf.done ? ' done' : '');
       b.draggable = true;
       b.innerHTML =
         '<input type="checkbox" class="cb-done"' + (lf.done ? ' checked' : '') + '>' +
@@ -340,8 +340,11 @@
       c.addEventListener('click', function () { P.actions.toggleOccurrence(it.id, it.date); });
     } else {
       var lf = it.node.leaf;
-      c.className += ' task' + (lf.estimated ? ' estimated' : '') + (lf.done ? ' done' : '');
-      c.textContent = U.fmtTimeShort(it.start) + ' ' + it.node.title;
+      c.className += ' task' + (lf.done ? ' done' : '');
+      // A start-of-day task (midnight) carries no real time-of-day, so show just
+      // the title; otherwise prefix the scheduled time.
+      var atDayStart = it.start.getHours() === 0 && it.start.getMinutes() === 0;
+      c.textContent = (atDayStart ? '' : U.fmtTimeShort(it.start) + ' ') + it.node.title;
       c.draggable = true;
       c.addEventListener('dragstart', function (e) {
         e.dataTransfer.setData('text/plain', it.id);
@@ -362,19 +365,20 @@
       cell.classList.add('drop-hover');
     });
     cell.addEventListener('dragleave', function () { cell.classList.remove('drop-hover'); });
-    // Click an empty part of a day to create a task at 9:00 that day.
+    // Click an empty part of a day to create a task at the start of that day
+    // (no invented time-of-day — the editor lets you add one).
     cell.addEventListener('click', function (e) {
       if (e.target.closest('.cm-chip')) return; // clicked an existing item
-      quickAdd(new Date(day.getFullYear(), day.getMonth(), day.getDate(), 9, 0, 0, 0));
+      quickAdd(new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0, 0));
     });
     cell.addEventListener('drop', function (e) {
       e.preventDefault();
       cell.classList.remove('drop-hover');
       var id = e.dataTransfer.getData('text/plain') || P.dragNodeId;
       if (!id) return;
-      // keep the task's existing time-of-day if it had one, else default 9:00
+      // keep the task's existing time-of-day if it had one, else the start of day
       var f = P.model.find(P.store.getState().goals, id);
-      var hh = 9, mm = 0;
+      var hh = 0, mm = 0;
       if (f && f.node.leaf && f.node.leaf.scheduledStart) {
         var prev = new Date(f.node.leaf.scheduledStart);
         hh = prev.getHours(); mm = prev.getMinutes();
