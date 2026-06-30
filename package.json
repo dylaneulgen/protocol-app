@@ -1,0 +1,48 @@
+{
+  "name": "protocol",
+  "productName": "Protocol",
+  "version": "1.0.0",
+  "description": "A fully local, offline personal planning & goal-management desktop app (notes + hierarchical goals + calendar).",
+  "author": "Dylan Eulgen",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test",
+    "pack": "electron-builder --win --dir",
+    "dist": "electron-builder --win --x64"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.dylan.protocol",
+    "productName": "Protocol",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Protocol",
+      "artifactName": "Protocol Setup ${version}.exe",
+      "uninstallDisplayName": "Protocol"
+    },
+    "portable": {
+      "artifactName": "Protocol.exe"
+    }
+  }
+}
