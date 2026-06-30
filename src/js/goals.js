@@ -506,14 +506,13 @@
       hint.classList.toggle('bad', this.value.trim() !== '' && v == null);
     });
 
-    // Date/time fields: open the native calendar / clock picker on click instead of
-    // forcing the user to type a value. (Chromium's showPicker — present in Electron
-    // — pops the same UI as clicking the field's built-in indicator.)
-    Array.prototype.forEach.call(dlg.querySelectorAll('input[type="date"], input[type="time"]'), function (inp) {
-      inp.addEventListener('click', function () {
-        try { inp.showPicker(); } catch (e) { /* unsupported, or already open */ }
+    // Date/time fields: open our custom monochrome calendar / clock picker on click
+    // instead of typing (and instead of Chromium's un-themeable blue native popup).
+    if (P.picker) {
+      Array.prototype.forEach.call(dlg.querySelectorAll('input[type="date"], input[type="time"]'), function (inp) {
+        P.picker.attach(inp);
       });
-    });
+    }
   }
 
   function syncKindFields() {
@@ -526,6 +525,7 @@
   // Dismiss the editor. If it was opened for a freshly click-created task that
   // the user never saved, discard that placeholder. Idempotent.
   function cancelEditor() {
+    if (P.picker) P.picker.close();
     if (creatingNew && !savedThisOpen && editingId) {
       var st = P.store.getState();
       P.model.removeNode(st.goals, editingId);
@@ -676,6 +676,7 @@
 
     savedThisOpen = true;
     creatingNew = false;
+    if (P.picker) P.picker.close();
     dlg.close();
     editingId = null;
     P.store.commit();
