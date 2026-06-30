@@ -69,7 +69,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ink); }
   background: var(--bg-soft); border-bottom: 1px solid var(--line);
   -webkit-app-region: drag;            /* whole bar drags the window */
   -webkit-user-select: none; user-select: none;
-  padding-right: 8px;                  /* keep buttons off the screen edge */
+  /* no right padding: the close button must sit flush in the corner so its
+     hover highlight reaches the window edge (Windows convention). */
 }
 .tb-context { display: flex; align-items: center; padding-left: 12px; -webkit-app-region: no-drag; }
 .tbc { display: none; align-items: center; gap: 10px; }
