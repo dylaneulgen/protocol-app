@@ -23,11 +23,14 @@ function backupPath() {
 
 let mainWindow = null;
 
-// Window/taskbar icon. In a packaged build Electron already embeds build/icon.ico
-// into the executable, so this mainly makes the icon explicit for `npm start`
-// (dev) runs. The file isn't bundled into the asar, so guard on existence and
-// let production fall back to the embedded exe icon.
-const ICON_PATH = path.join(__dirname, 'build', 'icon.ico');
+// Window/taskbar icon. electron-builder embeds build/icon.ico into the packaged
+// exe (what Windows shows in the taskbar), and we also ship it as an extra
+// resource (see build.extraResources) so the BrowserWindow icon can be set
+// explicitly in both dev and the packaged app — keeping the window/taskbar icon
+// unambiguously the app icon rather than relying on a fallback.
+const ICON_PATH = app.isPackaged
+  ? path.join(process.resourcesPath, 'icon.ico')
+  : path.join(__dirname, 'build', 'icon.ico');
 
 function createWindow() {
   const options = {

@@ -19,6 +19,12 @@
   "build": {
     "appId": "com.dylan.protocol",
     "productName": "Protocol",
+    "extraResources": [
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      }
+    ],
     "files": [
       "main.js",
       "preload.js",
