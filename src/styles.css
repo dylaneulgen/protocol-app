@@ -291,9 +291,10 @@ dialog::backdrop { background: rgba(0, 0, 0, .55); }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
 .field input[type="text"], .field textarea { color: var(--ink); font-size: 14px; }
 .field textarea { resize: none; }
-/* Native date/time fields: dark popup, and a visible (inverted-to-white) picker
-   button so it's obvious you can click to open the calendar / clock UI. */
-input[type="date"], input[type="time"] { color-scheme: dark; cursor: pointer; }
+/* Native date/time fields: dark popup with a white (monochrome) selection accent
+   to match the theme, plus a visible (inverted-to-white) picker button so it's
+   obvious you can click to open the calendar / clock UI. */
+input[type="date"], input[type="time"] { color-scheme: dark; accent-color: var(--ink); cursor: pointer; }
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="time"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: .75; cursor: pointer; }
 input[type="date"]::-webkit-calendar-picker-indicator:hover,

@@ -407,15 +407,33 @@
     if (P.app && P.app.toast) P.app.toast('Saved template "' + tpl.name + '"');
   }
 
+  // The one in-progress inline rename's finish() (or null). Tracked so we never
+  // have two rename inputs alive at once — that race is what made the caret vanish
+  // and could crash the app (see editTitleInline).
+  var activeRename = null;
+
   // Find a node's title in the DOM and start renaming it.
   function startRename(id) {
     var span = treeEl.querySelector('.node[data-id="' + id + '"] .title');
     if (span) editTitleInline(span, id);
   }
 
-  // Inline rename using a real text input — shows a caret and is reliable
-  // across engines (the old contentEditable approach hid the cursor).
+  // Inline rename using a real text input — shows a caret and is reliable across
+  // engines (the old contentEditable approach hid the cursor).
+  //
+  // Robustness: a rename's blur handler commits and re-renders the whole tree. If
+  // that fired synchronously while another render was running (or while focus was
+  // moving to a second rename input), it would detach the live input mid-operation
+  // — the caret never appeared and the app could crash. So: (1) only one rename is
+  // ever active — starting a new one cleanly finishes the previous and re-finds the
+  // freshly rendered node, and (2) the blur-save is deferred a tick so it can never
+  // re-enter render() synchronously. Enter/Escape still finish immediately.
   function editTitleInline(span, id) {
+    if (activeRename) activeRename(true); // commit any rename already in progress
+    // The previous finish re-rendered the tree, so re-find the live title element.
+    span = (treeEl && treeEl.querySelector('.node[data-id="' + id + '"] .title')) || span;
+    if (!span || !span.isConnected) return;
+
     var st = P.store.getState();
     var f = P.model.find(st.goals, id);
     if (!f) return;
@@ -432,16 +450,22 @@
     function finish(save) {
       if (done) return;
       done = true;
+      if (activeRename === finish) activeRename = null;
       input.removeEventListener('blur', onBlur);
       input.removeEventListener('keydown', onKey);
-      if (save) {
-        f.node.title = input.value.trim() || 'Untitled';
+      var val = input.value.trim() || 'Untitled';
+      if (save && f.node && f.node.title !== val) {
+        f.node.title = val;
         P.store.commit(); // re-render swaps the input back to a normal row
       } else {
-        render();
+        render();         // no change / cancelled — just restore the row
       }
     }
-    function onBlur() { finish(true); }
+    activeRename = finish;
+
+    // Defer the blur-save so a blur caused by a re-render detaching this input
+    // can't re-enter commit()/render() synchronously inside that render.
+    function onBlur() { if (!done) setTimeout(function () { finish(true); }, 0); }
     function onKey(ev) {
       if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
       else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
