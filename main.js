@@ -34,8 +34,8 @@ const ICON_PATH = app.isPackaged
 
 function createWindow() {
   const options = {
-    width: 1120,
-    height: 720,
+    width: 880,    // 4:3 (880 × 660), kept compact on first open
+    height: 660,
     minWidth: 880,
     minHeight: 560,
     backgroundColor: '#0c0d10',
