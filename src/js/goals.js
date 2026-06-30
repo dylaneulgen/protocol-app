@@ -156,7 +156,11 @@
     if (lf.actualMin >= 1) out.push('<span class="chip actual">logged ' + P.util.formatDuration(Math.round(lf.actualMin)) + '</span>');
     if (lf.scheduledStart) {
       var d = new Date(lf.scheduledStart);
-      out.push('<span class="chip when">' + P.util.fmtDateShort(d) + ' ' + P.util.fmtTimeShort(d) + '</span>');
+      // A start-of-day (midnight) task carries no real time-of-day — show just the
+      // date rather than a misleading "12a".
+      var atDayStart = d.getHours() === 0 && d.getMinutes() === 0;
+      out.push('<span class="chip when">' + P.util.fmtDateShort(d) +
+        (atDayStart ? '' : ' ' + P.util.fmtTimeShort(d)) + '</span>');
     }
     return out.join(' ');
   }
@@ -476,6 +480,15 @@
       var hint = document.getElementById('lf-duration-hint');
       hint.textContent = v == null ? '' : P.util.formatDuration(v);
       hint.classList.toggle('bad', this.value.trim() !== '' && v == null);
+    });
+
+    // Date/time fields: open the native calendar / clock picker on click instead of
+    // forcing the user to type a value. (Chromium's showPicker — present in Electron
+    // — pops the same UI as clicking the field's built-in indicator.)
+    Array.prototype.forEach.call(dlg.querySelectorAll('input[type="date"], input[type="time"]'), function (inp) {
+      inp.addEventListener('click', function () {
+        try { inp.showPicker(); } catch (e) { /* unsupported, or already open */ }
+      });
     });
   }
 
