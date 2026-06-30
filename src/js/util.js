@@ -120,6 +120,48 @@
     return DOW[date.getDay()] + ', ' + MONTHS[date.getMonth()] + ' ' + date.getDate() + ', ' + date.getFullYear();
   }
 
+  // ---- Time-of-day parsing --------------------------------------------------
+  // Flexible free-text time parse so users can type "900am", "9am", "9:00 AM",
+  // "930pm", "1400", "9", "9:30" etc. Returns { h:0-23, m:0-59 } or null. With an
+  // am/pm suffix the hour must read as a 12-hour clock (1–12); without one a bare
+  // number is taken as 24-hour.
+  function parseClock(input) {
+    if (input == null) return null;
+    var s = String(input).trim().toLowerCase().replace(/\s+/g, '').replace(/\./g, '');
+    if (s === '') return null;
+    var ampm = null;
+    var suf = s.match(/(am|pm|a|p)$/);
+    if (suf) { ampm = suf[1].charAt(0); s = s.slice(0, s.length - suf[1].length); }
+    if (s === '') return null;
+
+    var h, m;
+    var colon = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (colon) { h = parseInt(colon[1], 10); m = parseInt(colon[2], 10); }
+    else if (/^\d+$/.test(s)) {
+      if (s.length <= 2) { h = parseInt(s, 10); m = 0; }
+      else if (s.length === 3) { h = parseInt(s.charAt(0), 10); m = parseInt(s.slice(1), 10); }
+      else if (s.length === 4) { h = parseInt(s.slice(0, 2), 10); m = parseInt(s.slice(2), 10); }
+      else return null;
+    } else return null;
+
+    if (isNaN(h) || isNaN(m) || m > 59) return null;
+    if (ampm) {
+      if (h < 1 || h > 12) return null;
+      if (ampm === 'p' && h !== 12) h += 12;
+      else if (ampm === 'a' && h === 12) h = 0;
+    } else if (h > 23) return null;
+    if (h > 23) return null;
+    return { h: h, m: m };
+  }
+
+  // 24-hour h/m → friendly "9:00 AM".
+  function fmtClock(h, m) {
+    h = ((h % 24) + 24) % 24; m = m || 0;
+    var ap = h >= 12 ? 'PM' : 'AM';
+    var hh = h % 12; if (hh === 0) hh = 12;
+    return hh + ':' + pad(m) + ' ' + ap;
+  }
+
   // Elapsed clock from milliseconds: "m:ss" under an hour, else "h:mm:ss".
   function fmtElapsed(ms) {
     var s = Math.max(0, Math.floor(ms / 1000));
@@ -140,6 +182,7 @@
     toISO: toISO, fromISO: fromISO,
     fmtTime: fmtTime, fmtTimeShort: fmtTimeShort,
     fmtDateShort: fmtDateShort, fmtDateLong: fmtDateLong,
+    parseClock: parseClock, fmtClock: fmtClock,
     fmtElapsed: fmtElapsed
   };
 });

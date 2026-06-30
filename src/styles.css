@@ -291,13 +291,13 @@ dialog::backdrop { background: rgba(0, 0, 0, .55); }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
 .field input[type="text"], .field textarea { color: var(--ink); font-size: 14px; }
 .field textarea { resize: none; }
-/* Date/time fields drive our own monochrome popup (picker.js), so the input is
-   just a clickable display: dark segment text, native picker button hidden. */
-input[type="date"], input[type="time"] { color-scheme: dark; cursor: pointer; }
-input[type="date"]::-webkit-calendar-picker-indicator,
-input[type="time"]::-webkit-calendar-picker-indicator { display: none; }
+/* Date fields drive our own monochrome calendar (picker.js): the input is just a
+   clickable display with dark segment text and the native picker button hidden.
+   (Time fields are plain free-text inputs.) */
+input[type="date"] { color-scheme: dark; cursor: pointer; }
+input[type="date"]::-webkit-calendar-picker-indicator { display: none; }
 
-/* ---------- Custom monochrome date / time picker (picker.js) ---------- */
+/* ---------- Custom monochrome date picker (picker.js) ---------- */
 .mp-pop { position: fixed; z-index: 1000; width: 234px; padding: 9px; background: var(--bg-soft); border: 1px solid var(--line-strong); border-radius: 10px; box-shadow: 0 14px 40px rgba(0, 0, 0, .6); -webkit-user-select: none; user-select: none; }
 .mp-pop[hidden] { display: none; }
 .mp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
@@ -315,11 +315,6 @@ input[type="time"]::-webkit-calendar-picker-indicator { display: none; }
 .mp-foot { display: flex; justify-content: space-between; margin-top: 7px; }
 .mp-link { background: transparent; border: 0; color: var(--muted); font-size: 12px; padding: 4px 7px; border-radius: 6px; cursor: pointer; }
 .mp-link:hover { color: var(--ink); background: var(--hover); }
-.mp-time { display: flex; gap: 7px; }
-.mp-col { flex: 1 1 0; max-height: 196px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding-right: 2px; }
-.mp-cell { padding: 6px 0; border: 1px solid transparent; background: transparent; color: var(--ink-soft); border-radius: 6px; font-size: 13px; font-variant-numeric: tabular-nums; cursor: pointer; }
-.mp-cell:hover { background: var(--hover); color: var(--ink); }
-.mp-cell.mp-sel { background: var(--fill); color: var(--fill-text); border-color: var(--fill); font-weight: 700; }
 .field.check { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); font-size: 13px; }
 .type-toggle { flex-direction: row; gap: 18px; color: var(--ink); font-size: 13px; }
 .type-toggle label { display: flex; align-items: center; gap: 6px; }

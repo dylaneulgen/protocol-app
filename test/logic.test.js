@@ -24,6 +24,32 @@ test('formatDuration is human readable', () => {
   assert.strictEqual(util.formatDuration(0), '0m');
 });
 
+test('parseClock understands free-text time', () => {
+  assert.deepStrictEqual(util.parseClock('900am'), { h: 9, m: 0 });
+  assert.deepStrictEqual(util.parseClock('9am'), { h: 9, m: 0 });
+  assert.deepStrictEqual(util.parseClock('9:00 AM'), { h: 9, m: 0 });
+  assert.deepStrictEqual(util.parseClock('930pm'), { h: 21, m: 30 });
+  assert.deepStrictEqual(util.parseClock('12am'), { h: 0, m: 0 });
+  assert.deepStrictEqual(util.parseClock('12pm'), { h: 12, m: 0 });
+  assert.deepStrictEqual(util.parseClock('1230pm'), { h: 12, m: 30 });
+  assert.deepStrictEqual(util.parseClock('1400'), { h: 14, m: 0 });
+  assert.deepStrictEqual(util.parseClock('0930'), { h: 9, m: 30 });
+  assert.deepStrictEqual(util.parseClock('9'), { h: 9, m: 0 });
+  assert.deepStrictEqual(util.parseClock('9:30'), { h: 9, m: 30 });
+  assert.strictEqual(util.parseClock(''), null);
+  assert.strictEqual(util.parseClock('banana'), null);
+  assert.strictEqual(util.parseClock('25:00'), null);
+  assert.strictEqual(util.parseClock('9:60'), null);
+  assert.strictEqual(util.parseClock('13am'), null); // 12-hour clock only
+});
+
+test('fmtClock renders friendly 12-hour times', () => {
+  assert.strictEqual(util.fmtClock(9, 0), '9:00 AM');
+  assert.strictEqual(util.fmtClock(21, 30), '9:30 PM');
+  assert.strictEqual(util.fmtClock(0, 0), '12:00 AM');
+  assert.strictEqual(util.fmtClock(12, 0), '12:00 PM');
+});
+
 test('date helpers work in local time', () => {
   const d = new Date(2026, 5, 29, 13, 30); // Mon Jun 29 2026
   assert.strictEqual(util.ymd(d), '2026-06-29');

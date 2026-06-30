@@ -506,13 +506,24 @@
       hint.classList.toggle('bad', this.value.trim() !== '' && v == null);
     });
 
-    // Date/time fields: open our custom monochrome calendar / clock picker on click
-    // instead of typing (and instead of Chromium's un-themeable blue native popup).
+    // Date fields: open our custom monochrome calendar on click (instead of typing,
+    // and instead of Chromium's un-themeable blue native popup).
     if (P.picker) {
-      Array.prototype.forEach.call(dlg.querySelectorAll('input[type="date"], input[type="time"]'), function (inp) {
+      Array.prototype.forEach.call(dlg.querySelectorAll('input[type="date"]'), function (inp) {
         P.picker.attach(inp);
       });
     }
+
+    // Time fields are free text: type anything ("900am", "9", "1830") and on blur
+    // it normalises to a friendly "9:00 AM". Unreadable input is left as typed.
+    ['lf-time', 'lf-rec-time'].forEach(function (id) {
+      var inp = document.getElementById(id);
+      if (!inp) return;
+      inp.addEventListener('blur', function () {
+        var t = P.util.parseClock(inp.value);
+        if (t) inp.value = P.util.fmtClock(t.h, t.m);
+      });
+    });
   }
 
   function syncKindFields() {
@@ -561,7 +572,7 @@
       var d = new Date(lf.scheduledStart);
       document.getElementById('lf-date').value = P.util.ymd(d);
       var hasTime = d.getHours() !== 0 || d.getMinutes() !== 0;
-      document.getElementById('lf-time').value = hasTime ? P.util.pad(d.getHours()) + ':' + P.util.pad(d.getMinutes()) : '';
+      document.getElementById('lf-time').value = hasTime ? P.util.fmtClock(d.getHours(), d.getMinutes()) : '';
     } else {
       document.getElementById('lf-date').value = '';
       document.getElementById('lf-time').value = '';
@@ -573,7 +584,8 @@
       var on = rec.daysOfWeek.indexOf(parseInt(b.dataset.dow, 10)) !== -1;
       b.classList.toggle('on', on);
     });
-    document.getElementById('lf-rec-time').value = rec.startTime || '18:00';
+    var rt = P.util.parseClock(rec.startTime || '18:00') || { h: 18, m: 0 };
+    document.getElementById('lf-rec-time').value = P.util.fmtClock(rt.h, rt.m);
     document.getElementById('lf-rec-start').value = rec.startDate || '';
     document.getElementById('lf-rec-end').value = rec.endDate || '';
 
@@ -635,7 +647,7 @@
         durationMin: durMin,
         recurrence: {
           daysOfWeek: days.length ? days : [1, 2, 3, 4, 5],
-          startTime: document.getElementById('lf-rec-time').value || '18:00',
+          startTime: clock24(document.getElementById('lf-rec-time').value, '18:00'),
           startDate: document.getElementById('lf-rec-start').value || null,
           endDate: document.getElementById('lf-rec-end').value || null
         },
@@ -643,16 +655,13 @@
       };
     } else {
       var dateStr = document.getElementById('lf-date').value;
-      var timeStr = document.getElementById('lf-time').value;
+      var t = P.util.parseClock(document.getElementById('lf-time').value);
       var scheduledStart = null;
       if (dateStr) {
         var dd = P.util.parseYmd(dateStr); // midnight (start of the chosen day)
-        // No time entered → leave it at the start of that day rather than
+        // No (or unreadable) time → leave it at the start of that day rather than
         // inventing a default time-of-day.
-        if (timeStr) {
-          var tp = timeStr.split(':');
-          dd.setHours(parseInt(tp[0], 10) || 0, parseInt(tp[1], 10) || 0, 0, 0);
-        }
+        if (t) dd.setHours(t.h, t.m, 0, 0);
         scheduledStart = dd.toISOString();
       }
       // Preserve tracked time, any running timer, and the done state. Done is no
@@ -778,6 +787,12 @@
   }
 
   // ---- util -----------------------------------------------------------------
+  // Free-text time field → "HH:MM" (24h) for storage; falls back when unreadable.
+  function clock24(str, fallback) {
+    var t = P.util.parseClock(str);
+    return t ? P.util.pad(t.h) + ':' + P.util.pad(t.m) : fallback;
+  }
+
   function esc(s) {
     return String(s).replace(/[&<>"]/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
