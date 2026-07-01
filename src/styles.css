@@ -168,7 +168,9 @@ body.is-mac .tb-context { padding-left: 80px; }
 .goal-card > .node > .children { margin-left: 0; border-left: 0; padding: 6px 12px 10px; }
 .children { margin-left: 15px; border-left: 1px solid var(--line); padding-left: 8px; }
 
-.node-row { display: flex; align-items: center; gap: 7px; padding: 4px 8px; border-radius: 7px; min-height: 32px; -webkit-user-select: none; user-select: none; }
+/* Square corners (no rounding) so subgoal rows read as clean solid lines that
+   align with the tree guide, matching the main-goal header's straight edges. */
+.node-row { display: flex; align-items: center; gap: 7px; padding: 4px 8px; border-radius: 0; min-height: 32px; -webkit-user-select: none; user-select: none; }
 .title-input { flex: 1 1 auto; min-width: 0; font: inherit; font-size: 13.5px; color: var(--ink); background: var(--bg-soft); border: 1px solid var(--ink); border-radius: 4px; padding: 1px 5px; caret-color: var(--ink); }
 .goal-header .title-input { font-size: 15px; font-weight: 700; }
 .node-row:hover { background: var(--hover); }
