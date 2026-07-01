@@ -23,6 +23,9 @@ contextBridge.exposeInMainWorld('planner', {
 
 // Custom title-bar window controls (only present in the desktop app).
 contextBridge.exposeInMainWorld('win', {
+  // Platform tag so the renderer can adapt chrome (e.g. hide the Windows-only
+  // custom window buttons on macOS, where native traffic lights are used).
+  platform: process.platform,
   minimize: () => ipcRenderer.invoke('window:minimize'),
   toggleMaximize: () => ipcRenderer.invoke('window:toggle-maximize'),
   close: () => ipcRenderer.invoke('window:close'),

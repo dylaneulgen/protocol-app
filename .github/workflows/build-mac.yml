@@ -1,0 +1,53 @@
+name: Build macOS installer
+
+# Builds an unsigned macOS .dmg on a GitHub-hosted Mac runner (a Windows machine
+# can't produce a .dmg) and attaches it to a GitHub Release so the README
+# download link resolves. Runs on a manual dispatch (attaches to the latest
+# release) or automatically when you publish a Release (attaches to that one).
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    permissions:
+      contents: write   # allow attaching the .dmg to a GitHub Release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build universal .dmg (unsigned)
+        env:
+          # No Apple Developer certificate yet — skip code signing so the build
+          # succeeds. Remove this once a Developer ID cert + notarization is set up.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: npx electron-builder --mac --publish never
+
+      - name: Upload .dmg as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Protocol-macOS
+          path: dist/*.dmg
+
+      # Attach the .dmg to a GitHub Release so the README download link resolves.
+      # On a release-publish it targets that release; on a manual run it targets
+      # the current latest release.
+      - name: Attach .dmg to the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="$(gh release view --json tagName -q .tagName)"
+          fi
+          echo "Attaching to release $TAG"
+          gh release upload "$TAG" dist/*.dmg --clobber

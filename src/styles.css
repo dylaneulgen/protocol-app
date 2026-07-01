@@ -89,6 +89,10 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--ink); }
 .tb-close:hover { background: var(--ink); color: var(--fill-text); }
 /* Window buttons only make sense in the desktop app */
 body:not(.is-electron) .tb-controls { display: none; }
+/* macOS draws native traffic lights (titleBarStyle:'hiddenInset'), so hide our
+   Windows-glyph window buttons there and inset the toolbar clear of the lights. */
+body.is-mac .tb-controls { display: none; }
+body.is-mac .tb-context { padding-left: 80px; }
 
 /* ---------- Workspace (sidebar + main) ---------- */
 .workspace { flex: 1 1 auto; min-height: 0; display: flex; }

@@ -33,6 +33,7 @@ const ICON_PATH = app.isPackaged
   : path.join(__dirname, 'build', 'icon.ico');
 
 function createWindow() {
+  const isMac = process.platform === 'darwin';
   const options = {
     width: 880,    // 4:3 (880 × 660), kept compact on first open
     height: 660,
@@ -40,7 +41,13 @@ function createWindow() {
     minHeight: 560,
     backgroundColor: '#0c0d10',
     title: 'Protocol',
-    frame: false,            // frameless — we draw our own title bar in the page
+    // Frameless everywhere — we draw our own title bar in the page. On macOS use
+    // hiddenInset instead so the native traffic-light buttons remain (our Segoe
+    // window-control glyphs are Windows-only); the renderer hides its custom
+    // controls and insets the toolbar for the lights via the .is-mac body class.
+    ...(isMac
+      ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 14, y: 22 } }
+      : { frame: false }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
