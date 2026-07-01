@@ -10,7 +10,8 @@
     "start": "electron .",
     "test": "node --test",
     "pack": "electron-builder --win --dir",
-    "dist": "electron-builder --win --x64"
+    "dist": "electron-builder --win --x64",
+    "dist:mac": "electron-builder --mac"
   },
   "devDependencies": {
     "electron": "^31.0.0",
@@ -49,6 +50,17 @@
     },
     "portable": {
       "artifactName": "Protocol.exe"
+    },
+    "mac": {
+      "icon": "build/icon.png",
+      "category": "public.app-category.productivity",
+      "target": [
+        { "target": "dmg", "arch": ["universal"] }
+      ],
+      "artifactName": "Protocol-${version}-mac.dmg"
+    },
+    "dmg": {
+      "artifactName": "Protocol-${version}-mac.dmg"
     }
   }
 }

@@ -154,6 +154,8 @@
   function wireWindowControls() {
     var isElectron = !!window.win;
     document.body.classList.toggle('is-electron', isElectron);
+    // macOS shows native traffic lights instead of our custom window buttons.
+    document.body.classList.toggle('is-mac', isElectron && window.win.platform === 'darwin');
 
     var maxBtn = document.querySelector('.tb-btn[data-win="max"]');
     document.querySelectorAll('.tb-btn').forEach(function (btn) {

@@ -8,9 +8,14 @@ I built this for myself to plan my own work.
 
 ## Install
 
-**[Download the latest installer (Windows)](https://github.com/dylaneulgen/protocol/releases/latest)**
+- **[Download for Windows](https://github.com/dylaneulgen/protocol/releases/latest)** — `Protocol Setup <version>.exe`
+- **[Download for macOS](https://github.com/dylaneulgen/protocol/releases/latest)** — `Protocol-<version>-mac.dmg` (universal — Apple Silicon + Intel)
 
 Your data is local.
+
+On macOS the app isn't code-signed yet, so the first launch is blocked with an
+"unidentified developer" warning. Right-click (or Control-click) the app in
+**Applications**, choose **Open**, then confirm — you only need to do this once.
 
 ## Run from source
 
