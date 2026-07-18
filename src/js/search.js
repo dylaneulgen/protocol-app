@@ -1,8 +1,9 @@
-// Search the page you're on — goals (title + notes) on the Goals page, notes
-// (title + body) on the Notes page. Opened from the "Search" button in the top
-// bar (Goals/Notes only) or Ctrl+F / Ctrl+K. It opens NON-modally, so the page
-// stays put behind it; picking a result reveals it in place on the same page.
-// Read-only — it never mutates data.
+// Search the page you're on — items (title, notes, tag, if/else text) on the
+// Calendar page, notes (title + body) on the Notes page. Opened from the
+// "Search" button in the top bar or Ctrl+F / Ctrl+K. It opens NON-modally, so
+// the page stays put behind it. Picking an item jumps to its day (or opens its
+// editor if it has none); picking a note reveals it. Read-only — it never
+// mutates data.
 (function () {
   'use strict';
   var P = (window.Planner = window.Planner || {});
@@ -10,7 +11,7 @@
   var results = [];
   var active = 0;
 
-  // Which page the search currently operates over ('goals' | 'notes').
+  // Which page the search currently operates over ('calendar' | 'notes').
   function area() { return P.store.getState().ui.area; }
 
   function mount() {
@@ -40,9 +41,8 @@
 
   function open() {
     if (!dlg) return;
-    if (area() !== 'goals' && area() !== 'notes') return; // nothing to search here
     if (dlg.open) { input.focus(); input.select(); return; } // already open — keep the query
-    input.placeholder = area() === 'notes' ? 'Search notes…' : 'Search goals…';
+    input.placeholder = area() === 'notes' ? 'Search notes…' : 'Search tasks…';
     dlg.show(); // non-modal: the current page stays visible/interactive behind it
     input.value = '';
     results = []; active = 0;
@@ -73,25 +73,28 @@
     render();
   }
 
-  // Only search the content of the page you're on — goals OR notes, never both —
-  // so a result always reveals in place without switching pages.
+  // Only search the content of the page you're on — items OR notes, never both.
   function compute(q) {
     var st = P.store.getState();
     var out = [];
-    if (area() === 'goals') {
-      P.model.walk(st.goals, function (n) {
-        var inTitle = n.title && n.title.toLowerCase().indexOf(q) !== -1;
-        var inNotes = n.notes && n.notes.toLowerCase().indexOf(q) !== -1;
-        if (inTitle || inNotes) {
-          var trail = P.model.path(st.goals, n.id);
-          var crumb = trail.slice(0, -1).map(function (x) { return x.title; }).join(' › ');
+    if (area() === 'calendar') {
+      // Walk tasks and their subtasks; each result remembers its top-level
+      // ancestor so choosing it can jump to the right day.
+      function visit(it, top) {
+        var title = P.model.titleOf(it);
+        var hay = [title, it.notes].filter(Boolean).join('\n');
+        if (hay.toLowerCase().indexOf(q) !== -1) {
+          var inTitle = title.toLowerCase().indexOf(q) !== -1;
+          var where = top.kind === 'habit' ? 'Habit' : (top.date ? top.date : 'Backlog');
           out.push({
-            type: 'goal', id: n.id, title: n.title || 'Untitled',
-            sub: crumb || 'Goal',
-            snippet: (inNotes && !inTitle) ? snipHtml(n.notes, q) : ''
+            type: 'item', id: it.id, item: it, top: top, title: title,
+            sub: (it !== top ? 'Subtask · ' : '') + where,
+            snippet: inTitle ? '' : snipHtml(hay, q)
           });
         }
-      });
+        (it.children || []).forEach(function (ch) { visit(ch, top); });
+      }
+      st.items.forEach(function (it) { visit(it, it); });
     } else if (area() === 'notes') {
       st.notesItems.forEach(function (note) {
         var inTitle = note.title && note.title.toLowerCase().indexOf(q) !== -1;
@@ -129,7 +132,7 @@
     var q = input.value.trim();
     if (!q) {
       resultsEl.innerHTML = '<div class="sr-empty">Type to search your ' +
-        (area() === 'notes' ? 'notes' : 'goals') + '.</div>';
+        (area() === 'notes' ? 'notes' : 'tasks') + '.</div>';
       return;
     }
     if (!results.length) {
@@ -138,7 +141,7 @@
     }
     resultsEl.innerHTML = results.map(function (r, i) {
       return '<div class="sr-item' + (i === active ? ' active' : '') + '" data-i="' + i + '">' +
-        '<span class="sr-kind">' + (r.type === 'note' ? 'Note' : 'Goal') + '</span>' +
+        '<span class="sr-kind">' + (r.type === 'note' ? 'Note' : 'Task') + '</span>' +
         '<div class="sr-main">' +
         '<div class="sr-title">' + hl(r.title, q) + '</div>' +
         (r.snippet ? '<div class="sr-snip">' + r.snippet + '</div>'
@@ -157,11 +160,17 @@
     var r = results[i];
     if (!r) return;
     close();
-    // Results are scoped to the current page, so reveal in place — no page switch.
-    if (r.type === 'goal') {
-      if (P.goals && P.goals.reveal) P.goals.reveal(r.id);
-    } else {
+    if (r.type === 'note') {
       if (P.notes && P.notes.open) P.notes.open(r.id);
+      return;
+    }
+    var it = r.item, top = r.top || it;
+    if (top.kind === 'habit' || !top.date) {
+      // No single day to jump to — open the editor instead.
+      P.editor.openItem(it.id);
+    } else {
+      P.calendar.openDay(top.date); // re-renders synchronously
+      P.calendar.flashItem(it.id);
     }
   }
 

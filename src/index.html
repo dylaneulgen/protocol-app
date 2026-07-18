@@ -16,8 +16,9 @@
   <!-- Custom (frameless) title bar. Draggable; holds the active area's controls on
        the left and the window buttons on the right. Replaces the native OS bar. -->
   <div class="titlebar">
-    <div class="tb-context">
+    <div class="tb-left">
       <div class="tbc" data-tbc="calendar">
+        <button id="nav-back" class="tb-back" title="Back to month" aria-label="Back to month">‹</button>
         <div class="nav">
           <button id="nav-prev" title="Previous">‹</button>
           <button id="nav-today">Today</button>
@@ -25,9 +26,16 @@
         </div>
         <span id="cal-title" class="cal-title"></span>
       </div>
-      <div class="tbc" data-tbc="goals">
-        <button id="btn-add-goal" class="primary">+ Add goal</button>
-        <button class="tb-search-btn" data-search-btn title="Search goals (Ctrl+F)">
+      <div class="tbc" data-tbc="notes">
+        <span class="cal-title strong">Notes</span>
+      </div>
+    </div>
+
+    <div class="tb-drag"></div>
+
+    <div class="tb-right">
+      <div class="tbc" data-tbc="calendar">
+        <button class="tb-search-btn" data-search-btn title="Search tasks (Ctrl+F)">
           <svg class="search-ic" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
             <circle cx="6.7" cy="6.7" r="4.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
             <line x1="9.9" y1="9.9" x2="14" y2="14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
@@ -36,7 +44,7 @@
         </button>
       </div>
       <div class="tbc" data-tbc="notes">
-        <button id="btn-new-note" class="primary">+ Note</button>
+        <button id="btn-new-note" class="tb-action">+ Note</button>
         <button class="tb-search-btn" data-search-btn title="Search notes (Ctrl+F)">
           <svg class="search-ic" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
             <circle cx="6.7" cy="6.7" r="4.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
@@ -46,8 +54,6 @@
         </button>
       </div>
     </div>
-
-    <div class="tb-drag"></div>
 
     <div class="tb-controls">
       <button class="tb-btn" data-win="min" title="Minimize" aria-label="Minimize">&#xE921;</button>
@@ -61,8 +67,17 @@
     <nav class="sidebar">
       <div class="side-nav">
         <button class="side-item" data-view-area="calendar">Calendar</button>
-        <button class="side-item" data-view-area="goals">Goals</button>
         <button class="side-item" data-view-area="notes">Notes</button>
+      </div>
+      <div class="side-foot">
+        <div id="timer-pop" class="timer-pop" hidden>
+          <div id="timer-display" class="timer-display">0:00</div>
+          <div class="timer-actions">
+            <button id="timer-go" class="primary">Start</button>
+            <button id="timer-reset" class="ghost">Reset</button>
+          </div>
+        </div>
+        <button id="btn-timer" class="timer-btn" title="Time an activity">Timer</button>
       </div>
     </nav>
 
@@ -71,21 +86,7 @@
       <div id="error-banner" class="error-banner" hidden></div>
 
       <section class="area area-calendar" data-area="calendar">
-        <div class="cal-split">
-          <aside class="backlog-panel">
-            <div class="panel-head">
-              <h2>Backlog <span id="backlog-count" class="count"></span></h2>
-              <button class="rail-toggle" id="btn-toggle-backlog" title="Collapse">‹</button>
-            </div>
-            <p class="backlog-hint">Unscheduled tasks. Drag one onto a day to schedule it, or click to edit. New tasks without a date appear here.</p>
-            <div id="backlog-list" class="backlog-list"></div>
-          </aside>
-          <div id="calendar-body" class="calendar-body"></div>
-        </div>
-      </section>
-
-      <section class="area area-goals" data-area="goals">
-        <div id="goal-tree" class="goal-tree"></div>
+        <div id="calendar-body" class="calendar-body"></div>
       </section>
 
       <section class="area area-notes" data-area="notes">
@@ -105,68 +106,42 @@
     </main>
   </div>
 
-  <!-- New goal: name it first, then it's created -->
-  <dialog id="goal-dialog">
-    <form id="goal-form">
-      <h3>New goal</h3>
-      <label class="field">Name
-        <input id="goal-name" type="text" autocomplete="off">
-      </label>
-      <div class="field" id="tpl-field">
-        <span>Start from a template</span>
-        <div id="tpl-picker" class="tpl-picker"></div>
-      </div>
-      <menu class="dialog-actions">
-        <button type="button" id="goal-cancel" class="ghost">Cancel</button>
-        <button type="submit" class="primary">Create</button>
-      </menu>
-    </form>
-  </dialog>
-
-  <!-- Leaf details editor -->
-  <dialog id="leaf-dialog">
-    <form id="leaf-form">
-      <h3 id="leaf-dialog-title">Task details</h3>
+  <!-- Task / habit / subtask editor -->
+  <dialog id="item-dialog">
+    <form id="item-form">
+      <h3 id="item-dialog-title">Task</h3>
 
       <label class="field">Title
-        <input id="lf-title" type="text" autocomplete="off">
+        <input id="it-title" type="text" autocomplete="off">
       </label>
 
-      <label class="field switch-row">
-        <span>Recurring</span>
-        <span class="switch"><input type="checkbox" id="lf-recurring"><span class="slider"></span></span>
+      <label class="field">Time (optional)
+        <input id="it-time" type="text" autocomplete="off" placeholder="e.g. 9:00 AM">
       </label>
 
-      <label class="field">Duration (optional)
-        <input id="lf-duration" type="text" autocomplete="off" placeholder="1h30m">
+      <label class="field switch-row" id="it-recurring-row">
+        <span>Recurring (habit)</span>
+        <span class="switch"><input type="checkbox" id="it-recurring"><span class="slider"></span></span>
       </label>
-      <div id="lf-duration-hint" class="hint"></div>
 
-      <fieldset id="lf-task-fields" class="field">
-        <legend>Schedule</legend>
+      <fieldset id="it-habit-fields" class="field">
+        <legend>Repeats on</legend>
+        <div class="dow" id="it-dow" aria-label="Days of week"></div>
         <div class="row">
-          <label>Date (optional) <input id="lf-date" type="date"></label>
-          <label>Time (optional) <input id="lf-time" type="text" autocomplete="off"></label>
-        </div>
-      </fieldset>
-
-      <fieldset id="lf-budget-fields" class="field">
-        <legend>Recurrence</legend>
-        <div class="dow" id="lf-dow" aria-label="Days of week"></div>
-        <div class="row">
-          <label>Start time <input id="lf-rec-time" type="text" autocomplete="off" placeholder="e.g. 6:00 PM"></label>
-          <label>From (optional) <input id="lf-rec-start" type="date"></label>
-          <label>Until (optional) <input id="lf-rec-end" type="date"></label>
+          <label>From (optional) <input id="it-rec-start" type="date"></label>
+          <label>Until (optional) <input id="it-rec-end" type="date"></label>
         </div>
       </fieldset>
 
       <label class="field">Notes (optional)
-        <textarea id="lf-notes" rows="2"></textarea>
+        <textarea id="it-notes" rows="2"></textarea>
       </label>
 
       <menu class="dialog-actions">
-        <button type="button" id="lf-cancel" class="ghost">Cancel</button>
-        <button type="submit" id="lf-save" class="primary">Save</button>
+        <button type="button" id="it-delete" class="ghost danger">Delete</button>
+        <span class="dialog-gap"></span>
+        <button type="button" id="it-cancel" class="ghost">Cancel</button>
+        <button type="submit" id="it-save" class="primary">Save</button>
       </menu>
     </form>
   </dialog>
@@ -174,7 +149,7 @@
   <!-- Page-scoped search palette (top-bar Search button / Ctrl+F). Opened non-modally. -->
   <dialog id="search-dialog" class="search-dialog">
     <div class="search-box">
-      <input id="search-input" type="text" placeholder="Search goals and notes…" autocomplete="off" spellcheck="false">
+      <input id="search-input" type="text" placeholder="Search…" autocomplete="off" spellcheck="false">
       <button type="button" id="search-close" class="ghost">Esc</button>
     </div>
     <div id="search-results" class="search-results"></div>
@@ -191,9 +166,9 @@
   <script src="js/actions.js"></script>
   <script src="js/journal.js"></script>
   <script src="js/picker.js"></script>
-  <script src="js/goals.js"></script>
-  <script src="js/backlog.js"></script>
+  <script src="js/editor.js"></script>
   <script src="js/calendar.js"></script>
+  <script src="js/timer.js"></script>
   <script src="js/search.js"></script>
   <script src="js/app.js"></script>
 </body>

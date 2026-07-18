@@ -35,9 +35,9 @@ const ICON_PATH = app.isPackaged
 function createWindow() {
   const isMac = process.platform === 'darwin';
   const options = {
-    width: 880,    // 4:3 (880 × 660), kept compact on first open
-    height: 660,
-    minWidth: 880,
+    width: 1100,   // 3:2 (1100 × 740), comfortable for the calendar on first open
+    height: 740,
+    minWidth: 820,
     minHeight: 560,
     backgroundColor: '#0c0d10',
     title: 'Protocol',

@@ -80,31 +80,27 @@
     };
   }
 
-  // Built-in goal templates, rebuilt fresh from code on every load so improvements
-  // to the defaults always propagate (the file only persists CUSTOM templates).
-  function builtinTemplates() {
-    return (P.model.BUILTIN_TEMPLATES || []).map(P.model.normalizeTemplate).filter(Boolean);
-  }
-
   function defaultState() {
+    var today = P.util.ymd(new Date());
     return {
-      version: 1,
+      version: 2,
       notesItems: [],   // [{ id, title, body, updatedAt }]
-      goals: [],
-      templates: builtinTemplates(), // [{ id, name, description, builtin, root }]
+      items: [],        // flat list of tasks / habits / branches (see model.js)
       ui: {
-        area: 'calendar', // which sidebar section is shown: calendar | goals | notes
-        calendarView: 'month', // month is the only calendar view
-        anchorDate: P.util.ymd(new Date()),
+        area: 'calendar',   // which sidebar section is shown: calendar | notes
+        calMode: 'month',   // month overview | day page
+        anchorDate: today,  // month being viewed
+        dayDate: today,     // day page being viewed
         weekStartsOn: 0,
         selectedNoteId: null,
-        backlogCollapsed: true,
-        notesListCollapsed: false
+        notesListCollapsed: true,
+        timer: { running: false, startedAt: null, accumMs: 0 }
       }
     };
   }
 
   // Defensive normalisation so an old/partial/corrupt file can't crash the UI.
+  // Version 1 files (the goal-forest era) are converted to flat items.
   function migrate(data) {
     var s = defaultState();
     if (!data || typeof data !== 'object' || data.__loadError) {
@@ -119,68 +115,70 @@
         body: data.journal, updatedAt: data.journalUpdatedAt || null
       });
     }
-    if (Array.isArray(data.goals)) s.goals = data.goals.map(normalizeNode).filter(Boolean);
-    // Templates: built-ins are always taken from code (already seeded in s above);
-    // any CUSTOM templates saved in the file are normalised and appended.
-    if (Array.isArray(data.templates)) {
-      data.templates.forEach(function (t) {
-        if (!t || t.builtin) return;
-        var nt = P.model.normalizeTemplate(t);
-        if (nt) { nt.builtin = false; s.templates.push(nt); }
-      });
+    if (Array.isArray(data.items)) {
+      s.items = data.items.map(normalizeItem).filter(Boolean);
+    } else if (Array.isArray(data.goals)) {
+      s.items = P.model.migrateV1(data.goals).map(normalizeItem).filter(Boolean);
     }
     if (data.ui && typeof data.ui === 'object') {
-      if (data.ui.area) s.ui.area = data.ui.area;
-      if (data.ui.anchorDate) s.ui.anchorDate = data.ui.anchorDate;
+      if (data.ui.area === 'notes' || data.ui.area === 'calendar') s.ui.area = data.ui.area;
+      if (isYmd(data.ui.anchorDate)) s.ui.anchorDate = data.ui.anchorDate;
+      if (isYmd(data.ui.dayDate)) s.ui.dayDate = data.ui.dayDate;
+      if (data.ui.calMode === 'day' || data.ui.calMode === 'month') s.ui.calMode = data.ui.calMode;
       if (typeof data.ui.weekStartsOn === 'number') s.ui.weekStartsOn = data.ui.weekStartsOn;
       if (data.ui.selectedNoteId) s.ui.selectedNoteId = data.ui.selectedNoteId;
-      if (typeof data.ui.backlogCollapsed === 'boolean') s.ui.backlogCollapsed = data.ui.backlogCollapsed;
       if (typeof data.ui.notesListCollapsed === 'boolean') s.ui.notesListCollapsed = data.ui.notesListCollapsed;
-      // calendarView is intentionally not read back — month is the only view now
+      var t = data.ui.timer;
+      if (t && typeof t === 'object') {
+        s.ui.timer.accumMs = (typeof t.accumMs === 'number' && isFinite(t.accumMs) && t.accumMs > 0) ? t.accumMs : 0;
+        s.ui.timer.startedAt = typeof t.startedAt === 'string' ? t.startedAt : null;
+        s.ui.timer.running = !!t.running && !!s.ui.timer.startedAt;
+      }
     }
     return s;
   }
 
-  function normalizeNode(n) {
-    if (!n || typeof n !== 'object') return null;
-    n.id = n.id || P.util.uid('n');
-    n.title = typeof n.title === 'string' ? n.title : 'Untitled';
-    n.notes = typeof n.notes === 'string' ? n.notes : '';
-    n.collapsed = !!n.collapsed;
-    n.children = Array.isArray(n.children) ? n.children.map(normalizeNode).filter(Boolean) : [];
-    if (n.children.length > 0) {
-      n.leaf = null;
-    } else {
-      n.leaf = normalizeLeaf(n.leaf);
-    }
-    return n;
-  }
+  function isYmd(v) { return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v); }
+  function isHm(v) { return typeof v === 'string' && /^\d{2}:\d{2}$/.test(v); }
+  function str(v, fallback) { return typeof v === 'string' ? v : fallback; }
 
-  function normalizeLeaf(lf) {
-    if (!lf || typeof lf !== 'object') return P.model.defaultTaskLeaf();
-    if (lf.kind === 'budget') {
-      var base = P.model.defaultBudgetLeaf();
-      base.durationMin = num(lf.durationMin, base.durationMin);
-      var r = lf.recurrence || {};
-      base.recurrence.daysOfWeek = Array.isArray(r.daysOfWeek) ? r.daysOfWeek.slice() : base.recurrence.daysOfWeek;
-      base.recurrence.startTime = r.startTime || base.recurrence.startTime;
-      base.recurrence.startDate = r.startDate || null;
-      base.recurrence.endDate = r.endDate || null;
-      base.completedOccurrences = Array.isArray(lf.completedOccurrences) ? lf.completedOccurrences.slice() : [];
-      return base;
-    }
-    var t = P.model.defaultTaskLeaf();
-    t.durationMin = num(lf.durationMin, t.durationMin);
-    t.scheduledStart = typeof lf.scheduledStart === 'string' ? lf.scheduledStart : null;
-    t.done = !!lf.done;
-    t.completedAt = lf.completedAt || null;
-    t.actualMin = num(lf.actualMin, 0);
-    t.timerStart = typeof lf.timerStart === 'string' ? lf.timerStart : null;
+  // A subtask is a task nested in `children`; only top-level tasks keep a date.
+  function normalizeTask(it, isSub) {
+    var t = P.model.makeTask(str(it.title, 'Untitled'));
+    t.id = it.id || P.util.uid('n');
+    t.notes = str(it.notes, '');
+    t.time = isHm(it.time) ? it.time : null;
+    t.date = (!isSub && isYmd(it.date)) ? it.date : null;
+    t.done = !!it.done;
+    t.completedAt = it.completedAt || null;
+    t.children = Array.isArray(it.children)
+      ? it.children.map(function (c) { return normalizeTask(c || {}, true); }) : [];
     return t;
   }
 
-  function num(v, fallback) {
-    return (typeof v === 'number' && isFinite(v)) ? v : fallback;
+  function normalizeItem(it) {
+    if (!it || typeof it !== 'object') return null;
+
+    if (it.kind === 'habit') {
+      var h = P.model.makeHabit(str(it.title, 'Untitled'));
+      h.id = it.id || P.util.uid('n');
+      h.notes = str(it.notes, '');
+      h.time = isHm(it.time) ? it.time : null;
+      var r = it.recurrence || {};
+      if (Array.isArray(r.daysOfWeek)) {
+        h.recurrence.daysOfWeek = r.daysOfWeek.filter(function (d) {
+          return typeof d === 'number' && d >= 0 && d <= 6;
+        });
+      }
+      h.recurrence.startDate = isYmd(r.startDate) ? r.startDate : null;
+      h.recurrence.endDate = isYmd(r.endDate) ? r.endDate : null;
+      h.completedOccurrences = Array.isArray(it.completedOccurrences)
+        ? it.completedOccurrences.filter(isYmd) : [];
+      return h;
+    }
+
+    // Anything else (including old 'branch' items) normalises to a task.
+    return normalizeTask(it, false);
   }
 
   function normalizeNoteItem(n) {
@@ -226,9 +224,9 @@
   }
 
   // Call after mutating state. Options:
-  //   silent      — persist but don't re-render (journal typing, so the tree never
-  //                 rebuilds under the cursor). A whole burst of silent edits is
-  //                 coalesced into ONE undo step (the pre-burst state).
+  //   silent      — persist but don't re-render (journal typing, so the editor
+  //                 never rebuilds under the cursor). A whole burst of silent
+  //                 edits is coalesced into ONE undo step (the pre-burst state).
   //   noHistory   — a view-only change (area/month/collapse/selection) that should
   //                 re-render and persist but never appear on the undo timeline.
   //   provisional — render + persist but stay completely invisible to history and

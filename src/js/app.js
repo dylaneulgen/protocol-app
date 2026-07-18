@@ -10,8 +10,8 @@
   async function boot() {
     await P.store.init();
 
-    // While a drag is in progress, make calendar blocks transparent to drops so
-    // the column underneath receives the drop (see .dragging-active in CSS).
+    // While a drag is in progress, make items transparent to drops so the day
+    // cell underneath receives the drop (see .dragging-active in CSS).
     document.addEventListener('dragstart', function () { document.body.classList.add('dragging-active'); });
     document.addEventListener('dragend', function () {
       document.body.classList.remove('dragging-active');
@@ -22,15 +22,14 @@
     wireWindowControls();
 
     P.notes.mount();
-    P.goals.mount();
-    P.backlog.mount();
+    P.editor.mount();
     P.calendar.mount();
+    P.timer.mount();
     if (P.search) P.search.mount();
 
     P.store.subscribe(P.notes.render);
-    P.store.subscribe(P.goals.render);
-    P.store.subscribe(P.backlog.render);
     P.store.subscribe(P.calendar.render);
+    P.store.subscribe(P.timer.render);
 
     wireSidebar();
     wireHeader();
@@ -41,47 +40,14 @@
 
     showLoadErrorIfAny();
 
-    // Display the data file path in the status bar / folder button tooltip.
-    try {
-      var p = await P.io.dataPath();
-      var pathEl = document.getElementById('data-path');
-      if (pathEl) pathEl.textContent = 'Data: ' + p;
-      var folderBtn = document.getElementById('btn-folder');
-      if (folderBtn) folderBtn.title = 'Open ' + p;
-    } catch (e) { /* ignore */ }
-
     // Flush the last (debounced) edit to disk before the window closes.
     window.addEventListener('beforeunload', function () { P.store.flush(); });
-
-    // Tick running task timers once a second (updates the live elapsed display
-    // in place, without a full re-render).
-    setInterval(updateTimers, 1000);
-  }
-
-  function updateTimers() {
-    var live = document.querySelectorAll('.timer-live');
-    if (!live.length) return;
-    var goals = P.store.getState().goals;
-    Array.prototype.forEach.call(live, function (el) {
-      var f = P.model.find(goals, el.dataset.id);
-      if (f && f.node.leaf && f.node.leaf.timerStart) {
-        var lf = f.node.leaf;
-        var elapsedMs = Date.now() - new Date(lf.timerStart).getTime();
-        el.textContent = P.util.fmtElapsed(elapsedMs);
-        // Recolour as the run crosses the duration estimate (green → red).
-        var estMs = (lf.durationMin || 0) * 60000;
-        var over = estMs > 0 && ((lf.actualMin || 0) * 60000 + elapsedMs) > estMs;
-        el.classList.toggle('over', estMs > 0 && over);
-        el.classList.toggle('under', estMs > 0 && !over);
-      }
-    });
   }
 
   function renderAll() {
     P.notes.render();
-    P.goals.render();
-    P.backlog.render();
     P.calendar.render();
+    P.timer.render();
   }
 
   // ---- Global keyboard shortcuts -------------------------------------------
@@ -90,9 +56,9 @@
     if (!mod) return;
     var key = (e.key || '').toLowerCase();
 
-    // Ctrl+F / Ctrl+K — open the page search (no-op on Calendar; see search.js).
-    // Bail if any dialog is already open (don't stack over the leaf/goal editor,
-    // and don't wipe an in-progress query when search itself is the open dialog).
+    // Ctrl+F / Ctrl+K — open the page search. Bail if any dialog is already open
+    // (don't stack over an editor, and don't wipe an in-progress query when
+    // search itself is the open dialog).
     if (key === 'f' || key === 'k') {
       if (document.querySelector('dialog[open]')) return;
       e.preventDefault();
@@ -100,21 +66,9 @@
       return;
     }
 
-    // Copy / paste selected goals — goal tree only. Leave the native clipboard
-    // alone while editing text or with a dialog open, and only swallow the
-    // shortcut when we actually have something to copy/paste.
-    if (key === 'c' || key === 'v') {
-      if (P.store.getState().ui.area !== 'goals') return;
-      if (isTextTarget(e.target) || document.querySelector('dialog[open]')) return;
-      if (!P.goals) return;
-      if (key === 'c') { if (P.goals.copySelection && P.goals.copySelection()) e.preventDefault(); }
-      else { if (P.goals.pasteClipboard && P.goals.pasteClipboard()) e.preventDefault(); }
-      return;
-    }
-
     // Undo / redo. Skip while the user is editing a text field (so the native
     // input/textarea undo keeps working) or while a modal dialog is open (so we
-    // never rewrite the tree out from under an open editor).
+    // never rewrite the data out from under an open editor).
     if (key === 'z' || key === 'y') {
       if (isTextTarget(e.target) || document.querySelector('dialog[open]')) return;
       e.preventDefault();
@@ -181,10 +135,19 @@
     }
   }
 
-  // The one sidebar: each item swaps the single main view.
+  // The one sidebar: each item swaps the single main view. Opening Calendar
+  // always lands on the month with today in it.
   function wireSidebar() {
     Array.prototype.forEach.call(document.querySelectorAll('.side-item'), function (btn) {
-      btn.addEventListener('click', function () { setArea(btn.dataset.viewArea); });
+      btn.addEventListener('click', function () {
+        var area = btn.dataset.viewArea;
+        if (area === 'calendar') {
+          var ui = P.store.getState().ui;
+          ui.calMode = 'month';
+          ui.anchorDate = P.util.ymd(new Date());
+        }
+        setArea(area);
+      });
     });
   }
 
@@ -209,13 +172,7 @@
   }
 
   function wireHeader() {
-    // Collapse toggles: backlog (calendar) and the notes list
-    document.getElementById('btn-toggle-backlog').addEventListener('click', function () {
-      var ui = P.store.getState().ui;
-      ui.backlogCollapsed = !ui.backlogCollapsed;
-      applyCollapse();
-      P.store.commit({ noHistory: true });
-    });
+    // Collapse toggle for the notes list
     document.getElementById('btn-toggle-noteslist').addEventListener('click', function () {
       var ui = P.store.getState().ui;
       ui.notesListCollapsed = !ui.notesListCollapsed;
@@ -223,32 +180,38 @@
       P.store.commit({ noHistory: true });
     });
 
-    // Month navigation
+    // "‹ Month" — leave the day page back to the month overview.
+    document.getElementById('nav-back').addEventListener('click', function () {
+      if (P.calendar) P.calendar.backToMonth();
+    });
+
+    // Calendar navigation: months on the overview, days on the day page.
     document.getElementById('nav-prev').addEventListener('click', function () { navigate(-1); });
     document.getElementById('nav-next').addEventListener('click', function () { navigate(1); });
     document.getElementById('nav-today').addEventListener('click', function () {
-      P.store.getState().ui.anchorDate = P.util.ymd(new Date());
+      var ui = P.store.getState().ui;
+      var today = P.util.ymd(new Date());
+      if (ui.calMode === 'day') ui.dayDate = today; else ui.anchorDate = today;
       P.store.commit({ noHistory: true });
     });
   }
 
-  // Show/hide the backlog (calendar) and notes list, and reflect state on toggles.
+  // Show/hide the notes list and reflect state on its toggle.
   function applyCollapse() {
     var ui = P.store.getState().ui;
-    var calSplit = document.querySelector('.cal-split');
     var notesSplit = document.querySelector('.notes-split');
-    if (calSplit) calSplit.classList.toggle('no-backlog', !!ui.backlogCollapsed);
     if (notesSplit) notesSplit.classList.toggle('no-list', !!ui.notesListCollapsed);
-    var bt = document.getElementById('btn-toggle-backlog');
-    if (bt) { bt.textContent = ui.backlogCollapsed ? '›' : '‹'; bt.title = ui.backlogCollapsed ? 'Show backlog' : 'Collapse'; }
     var nt = document.getElementById('btn-toggle-noteslist');
     if (nt) { nt.textContent = ui.notesListCollapsed ? '›' : '‹'; nt.title = ui.notesListCollapsed ? 'Show list' : 'Collapse'; }
   }
 
   function navigate(dir) {
-    var st = P.store.getState();
-    var a = P.util.parseYmd(st.ui.anchorDate);
-    st.ui.anchorDate = P.util.ymd(P.util.addMonths(a, dir));
+    var ui = P.store.getState().ui;
+    if (ui.calMode === 'day') {
+      ui.dayDate = P.util.ymd(P.util.addDays(P.util.parseYmd(ui.dayDate), dir));
+    } else {
+      ui.anchorDate = P.util.ymd(P.util.addMonths(P.util.parseYmd(ui.anchorDate), dir));
+    }
     P.store.commit({ noHistory: true });
   }
 
