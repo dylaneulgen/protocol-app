@@ -1,7 +1,7 @@
 {
   "name": "protocol",
   "productName": "Protocol",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A fully local, offline personal planning & goal-management desktop app (notes + hierarchical goals + calendar).",
   "author": "Dylan Eulgen",
   "license": "MIT",
@@ -55,7 +55,12 @@
       "icon": "build/icon.png",
       "category": "public.app-category.productivity",
       "target": [
-        { "target": "dmg", "arch": ["universal"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
       ],
       "artifactName": "Protocol-${version}-mac.dmg"
     },

@@ -25,8 +25,8 @@ and state, and recurring budgets become habits.
 
 ## Install
 
-- **[Download for Windows](https://github.com/dylaneulgen/protocol/releases/latest)** — `Protocol Setup <version>.exe`
-- **[Download for macOS](https://github.com/dylaneulgen/protocol/releases/latest)** — `Protocol-<version>-mac.dmg` (universal — Apple Silicon + Intel)
+- **[Download for Windows](https://github.com/dylaneulgen/protocol-app/releases/latest)** — `Protocol Setup <version>.exe`
+- **[Download for macOS](https://github.com/dylaneulgen/protocol-app/releases/latest)** — `Protocol-<version>-mac.dmg` (universal — Apple Silicon + Intel)
 
 Your data is local.
 
