@@ -1,7 +1,7 @@
 {
   "name": "protocol",
   "productName": "Protocol",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A fully local, offline personal planning & goal-management desktop app (notes + hierarchical goals + calendar).",
   "author": "Dylan Eulgen",
   "license": "MIT",
