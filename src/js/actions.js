@@ -47,35 +47,6 @@
     }
   }
 
-  // Only one task times at once: stop any other running timer first.
-  function stopAllRunning() {
-    var st = P.store.getState();
-    P.model.leaves(st.goals, function (n) {
-      return n.leaf && n.leaf.kind === 'task' && n.leaf.timerStart;
-    }).forEach(function (n) { logRunning(n.leaf); });
-  }
-
-  function startTimer(id) {
-    var n = leafOf(id);
-    if (!n || !n.leaf || n.leaf.kind !== 'task') return;
-    stopAllRunning();
-    n.leaf.timerStart = new Date().toISOString();
-    P.store.commit();
-  }
-
-  function stopTimer(id) {
-    var n = leafOf(id);
-    if (!n || !n.leaf || !n.leaf.timerStart) return;
-    logRunning(n.leaf);
-    P.store.commit();
-  }
-
-  function toggleTimer(id) {
-    var n = leafOf(id);
-    if (!n || !n.leaf || n.leaf.kind !== 'task') return;
-    if (n.leaf.timerStart) stopTimer(id); else startTimer(id);
-  }
-
   // Toggle whether one occurrence of a recurring budget (on a given day) is done.
   function toggleOccurrence(id, dateKey) {
     var n = leafOf(id);
@@ -90,9 +61,6 @@
     schedule: schedule,
     unschedule: unschedule,
     toggleDone: toggleDone,
-    toggleOccurrence: toggleOccurrence,
-    startTimer: startTimer,
-    stopTimer: stopTimer,
-    toggleTimer: toggleTimer
+    toggleOccurrence: toggleOccurrence
   };
 })();

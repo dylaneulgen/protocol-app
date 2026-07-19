@@ -34,6 +34,7 @@
 
     wireSidebar();
     wireHeader();
+    wireStopwatch();
     document.addEventListener('keydown', onGlobalKey);
     applyArea(P.store.getState().ui.area || 'calendar');
     applyCollapse();
@@ -53,28 +54,36 @@
     // Flush the last (debounced) edit to disk before the window closes.
     window.addEventListener('beforeunload', function () { P.store.flush(); });
 
-    // Tick running task timers once a second (updates the live elapsed display
-    // in place, without a full re-render).
-    setInterval(updateTimers, 1000);
+    setInterval(renderStopwatch, 1000);
   }
 
-  function updateTimers() {
-    var live = document.querySelectorAll('.timer-live');
-    if (!live.length) return;
-    var goals = P.store.getState().goals;
-    Array.prototype.forEach.call(live, function (el) {
-      var f = P.model.find(goals, el.dataset.id);
-      if (f && f.node.leaf && f.node.leaf.timerStart) {
-        var lf = f.node.leaf;
-        var elapsedMs = Date.now() - new Date(lf.timerStart).getTime();
-        el.textContent = P.util.fmtElapsed(elapsedMs);
-        // Recolour as the run crosses the duration estimate (green → red).
-        var estMs = (lf.durationMin || 0) * 60000;
-        var over = estMs > 0 && ((lf.actualMin || 0) * 60000 + elapsedMs) > estMs;
-        el.classList.toggle('over', estMs > 0 && over);
-        el.classList.toggle('under', estMs > 0 && !over);
-      }
+  // Sidebar stopwatch — a standalone count-up timer (resets when the app closes).
+  var swBankedMs = 0, swStartedAt = 0;
+
+  function swElapsed() {
+    return swBankedMs + (swStartedAt ? Date.now() - swStartedAt : 0);
+  }
+
+  function renderStopwatch() {
+    var t = document.getElementById('sw-time');
+    if (t) t.textContent = P.util.fmtElapsed(swElapsed());
+    var btn = document.getElementById('sw-toggle');
+    if (btn) btn.textContent = swStartedAt ? 'Pause' : 'Start';
+  }
+
+  function wireStopwatch() {
+    var toggle = document.getElementById('sw-toggle');
+    var reset = document.getElementById('sw-reset');
+    if (toggle) toggle.addEventListener('click', function () {
+      if (swStartedAt) { swBankedMs += Date.now() - swStartedAt; swStartedAt = 0; }
+      else swStartedAt = Date.now();
+      renderStopwatch();
     });
+    if (reset) reset.addEventListener('click', function () {
+      swStartedAt = 0; swBankedMs = 0;
+      renderStopwatch();
+    });
+    renderStopwatch();
   }
 
   function renderAll() {

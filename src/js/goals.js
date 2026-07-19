@@ -75,20 +75,9 @@
     // title
     html += '<span class="title">' + esc(n.title) + '</span>';
 
-    // live timer — visible whenever a task's timer is running (any selection state).
-    // Green while the time spent is under the duration estimate, red once over it.
-    if (leaf && n.leaf.kind === 'task' && n.leaf.timerStart) {
-      var elapsedMs = Date.now() - new Date(n.leaf.timerStart).getTime();
-      html += '<span class="timer-live' + timerPace(n.leaf, elapsedMs) + '" data-id="' + n.id + '">' +
-        P.util.fmtElapsed(elapsedMs) + '</span>';
-    }
-
     // meta + actions — hidden until the row is selected (see CSS)
     html += '<span class="meta">' + metaHtml(n, leaf) + '</span>';
     html += '<span class="row-actions">';
-    if (leaf && n.leaf.kind === 'task') {
-      html += '<button data-action="timer">' + (n.leaf.timerStart ? 'Stop' : 'Start') + '</button>';
-    }
     html += '<button data-action="add-sub">Add</button>';
     if (leaf) html += '<button data-action="details">Edit</button>';
     if (depth === 0) html += '<button data-action="save-template" title="Save as a reusable template">Save</button>';
@@ -118,17 +107,6 @@
       return m;
     }
     return '';
-  }
-
-  // Pace class for a running timer: ' under' (green) while total time spent is
-  // within the duration estimate, ' over' (red) once it exceeds it, '' if there's
-  // no estimate to compare against. Counts previously logged time, not just the
-  // current run, so a resumed task that's already over reads red immediately.
-  function timerPace(lf, runningMs) {
-    var estMs = (lf.durationMin || 0) * 60000;
-    if (estMs <= 0) return '';
-    var spentMs = (lf.actualMin || 0) * 60000 + (runningMs || 0);
-    return spentMs > estMs ? ' over' : ' under';
   }
 
   function metaHtml(n, leaf) {
@@ -229,8 +207,6 @@
         openLeafEditor(id);
       } else if (action === 'save-template') {
         saveAsTemplate(id);
-      } else if (action === 'timer') {
-        P.actions.toggleTimer(id);
       }
       return; // 'done' handled in onChange
     }
